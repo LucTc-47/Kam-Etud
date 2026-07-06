@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: identity-service
+  datasource:
+    # Ancienne configuration : localhost:5433/auth_db avec postgres/postgres.
+    # Elle pointait vers le port reserve a request-db dans docker-compose.yml.
+    # url: jdbc:postgresql://localhost:5433/auth_db
+    # username: postgres
+    # password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5431/identity_db}
+    username: ${DB_USERNAME:user}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  # port: 8081
+  port: ${SERVER_PORT:8081}
+
+jwt:
+  # Ancienne valeur codee en dur : 404E...5970
+  # Le meme secret doit etre fourni a l'identity-service et a l'api-gateway.
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration: ${JWT_EXPIRATION:86400000}
+  refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+catalog:
+  service:
+    base-url: ${CATALOG_SERVICE_URL:http://localhost:8083}
+
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:change-this-internal-token}

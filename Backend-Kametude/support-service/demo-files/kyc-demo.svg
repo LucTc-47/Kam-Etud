@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+  <rect width="800" height="500" fill="#f3f4f6"/>
+  <rect x="40" y="40" width="720" height="420" rx="24" fill="#ffffff" stroke="#2563eb" stroke-width="4"/>
+  <text x="400" y="210" text-anchor="middle" font-family="Arial, sans-serif" font-size="46" fill="#1e3a8a">KAM'ETUD</text>
+  <text x="400" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#374151">DOCUMENT KYC DE TEST</text>
+  <text x="400" y="335" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#6b7280">Ne constitue pas une pièce d'identité réelle</text>
+</svg>

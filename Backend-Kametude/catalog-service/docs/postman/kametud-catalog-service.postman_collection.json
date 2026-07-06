@@ -1,0 +1,215 @@
+{
+  "info": {
+    "_postman_id": "9b079b51-f2c4-48c4-8a47-384398d3c898",
+    "name": "Kametud Catalog Service",
+    "description": "Collection Postman pour tester Catalog Service sur le port 8083.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create published gig",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 201\", function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const response = pm.response.json();",
+              "if (response.id) {",
+              "  pm.environment.set(\"gigId\", response.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentId\": \"{{studentId}}\",\n  \"title\": \"Developpement API Spring Boot\",\n  \"description\": \"Creation d'une API REST documentee pour un projet etudiant.\",\n  \"category\": \"Developpement\",\n  \"location\": \"Paris\",\n  \"tierBasique\": {\n    \"title\": \"Basic\",\n    \"description\": \"Un endpoint simple\",\n    \"price\": 10.00,\n    \"deliveryDays\": 7\n  },\n  \"tierStandard\": {\n    \"title\": \"Standard\",\n    \"description\": \"CRUD complet avec validation\",\n    \"price\": 25.00,\n    \"deliveryDays\": 5\n  },\n  \"tierPremium\": {\n    \"title\": \"Premium\",\n    \"description\": \"API complete avec documentation\",\n    \"price\": 45.00,\n    \"deliveryDays\": 2\n  },\n  \"published\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs"
+          ]
+        },
+        "description": "Cree un Gig publie. Identity Service doit autoriser l'etudiant."
+      },
+      "response": []
+    },
+    {
+      "name": "Create draft gig",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Status is 201\", function () {",
+              "  pm.response.to.have.status(201);",
+              "});",
+              "",
+              "const response = pm.response.json();",
+              "if (response.id) {",
+              "  pm.environment.set(\"gigId\", response.id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentId\": \"{{studentId}}\",\n  \"title\": \"Design logo etudiant\",\n  \"description\": \"Creation d'un logo simple et propre.\",\n  \"category\": \"Design\",\n  \"location\": \"Lyon\",\n  \"tierBasique\": {\n    \"title\": \"Basic\",\n    \"description\": \"Logo simple\",\n    \"price\": 15.00,\n    \"deliveryDays\": 6\n  },\n  \"tierStandard\": {\n    \"title\": \"Standard\",\n    \"description\": \"Logo plus variantes\",\n    \"price\": 30.00,\n    \"deliveryDays\": 4\n  },\n  \"tierPremium\": {\n    \"title\": \"Premium\",\n    \"description\": \"Logo, variantes et charte rapide\",\n    \"price\": 60.00,\n    \"deliveryDays\": 3\n  },\n  \"published\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs"
+          ]
+        },
+        "description": "Cree un brouillon sans appeler Identity Service."
+      },
+      "response": []
+    },
+    {
+      "name": "Search published gigs",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs?category=Developpement&location=Paris",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs"
+          ],
+          "query": [
+            {
+              "key": "category",
+              "value": "Developpement"
+            },
+            {
+              "key": "location",
+              "value": "Paris"
+            }
+          ]
+        },
+        "description": "Recherche les Gigs publies avec filtres optionnels."
+      },
+      "response": []
+    },
+    {
+      "name": "Get gig by id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs/{{gigId}}",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs",
+            "{{gigId}}"
+          ]
+        },
+        "description": "Recupere un Gig par son UUID."
+      },
+      "response": []
+    },
+    {
+      "name": "Publish draft gig",
+      "request": {
+        "method": "PATCH",
+        "header": [],
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs/{{gigId}}/publish",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs",
+            "{{gigId}}",
+            "publish"
+          ]
+        },
+        "description": "Publie un Gig brouillon apres verification Identity Service."
+      },
+      "response": []
+    },
+    {
+      "name": "Invalid payload example",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentId\": \"{{studentId}}\",\n  \"title\": \"\",\n  \"description\": \"Payload invalide pour verifier les erreurs 400.\",\n  \"category\": \"Developpement\",\n  \"location\": \"Paris\",\n  \"tierBasique\": {\n    \"title\": \"Basic\",\n    \"description\": \"Prix invalide\",\n    \"price\": 0,\n    \"deliveryDays\": 7\n  },\n  \"tierStandard\": {\n    \"title\": \"Standard\",\n    \"description\": \"CRUD complet\",\n    \"price\": 25.00,\n    \"deliveryDays\": 5\n  },\n  \"tierPremium\": {\n    \"title\": \"Premium\",\n    \"description\": \"API complete\",\n    \"price\": 45.00,\n    \"deliveryDays\": 2\n  },\n  \"published\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{catalogBaseUrl}}/api/gigs",
+          "host": [
+            "{{catalogBaseUrl}}"
+          ],
+          "path": [
+            "api",
+            "gigs"
+          ]
+        },
+        "description": "Doit retourner 400 avec details de validation."
+      },
+      "response": []
+    }
+  ]
+}
