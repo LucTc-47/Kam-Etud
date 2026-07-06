@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: kametud_catalog
+
+  datasource:
+    # Ancienne configuration : utilisateur postgres avec un mot de passe local.
+    # Les valeurs par defaut correspondent maintenant a catalog-db dans Docker.
+    # url: jdbc:postgresql://localhost:5432/catalog_db
+    # username: postgres
+    # password: 809145
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/catalog_db}
+    username: ${DB_USERNAME:user}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  # port: 8083
+  port: ${SERVER_PORT:8083}
+
+identity:
+  service:
+    # base-url: http://localhost:8081
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    student-status-path: /api/students/{studentId}/status
+    student-profile-path: /api/profiles/{studentId}
+
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:change-this-internal-token}
+
+app:
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:5173

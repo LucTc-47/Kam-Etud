@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 98%;
+    --foreground: 160 30% 10%;
+
+    --card: 40 25% 97%;
+    --card-foreground: 160 30% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 30% 10%;
+
+    --primary: 160 60% 30%;
+    --primary-foreground: 40 33% 98%;
+
+    --secondary: 38 80% 55%;
+    --secondary-foreground: 160 30% 10%;
+
+    --muted: 40 20% 93%;
+    --muted-foreground: 160 10% 45%;
+
+    --accent: 16 70% 55%;
+    --accent-foreground: 40 33% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 160 60% 30%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 160 30% 10%;
+    --sidebar-foreground: 40 33% 95%;
+    --sidebar-primary: 38 80% 55%;
+    --sidebar-primary-foreground: 160 30% 10%;
+    --sidebar-accent: 160 40% 18%;
+    --sidebar-accent-foreground: 40 33% 95%;
+    --sidebar-border: 160 20% 20%;
+    --sidebar-ring: 38 80% 55%;
+
+    /* Custom tokens */
+    --gradient-hero: linear-gradient(135deg, hsl(160 60% 30%), hsl(160 45% 22%));
+    --gradient-gold: linear-gradient(135deg, hsl(38 80% 55%), hsl(28 85% 50%));
+    --gradient-warm: linear-gradient(135deg, hsl(40 33% 98%), hsl(38 40% 94%));
+    --shadow-card: 0 4px 24px -4px hsl(160 30% 10% / 0.08);
+    --shadow-elevated: 0 12px 40px -8px hsl(160 30% 10% / 0.15);
+
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: 160 30% 6%;
+    --foreground: 40 20% 93%;
+    --card: 160 25% 10%;
+    --card-foreground: 40 20% 93%;
+    --popover: 160 25% 10%;
+    --popover-foreground: 40 20% 93%;
+    --primary: 160 55% 45%;
+    --primary-foreground: 160 30% 6%;
+    --secondary: 38 75% 50%;
+    --secondary-foreground: 40 20% 93%;
+    --muted: 160 15% 15%;
+    --muted-foreground: 40 10% 55%;
+    --accent: 16 65% 50%;
+    --accent-foreground: 40 20% 93%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 160 15% 18%;
+    --input: 160 15% 18%;
+    --ring: 160 55% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-hero);
+  }
+
+  .text-gradient-gold {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-gold);
+  }
+
+  .bg-gradient-hero {
+    background-image: var(--gradient-hero);
+  }
+
+  .bg-gradient-gold {
+    background-image: var(--gradient-gold);
+  }
+
+  .bg-gradient-warm {
+    background-image: var(--gradient-warm);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+}

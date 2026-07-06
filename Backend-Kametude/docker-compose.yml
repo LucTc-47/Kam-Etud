@@ -1,0 +1,70 @@
+# Ancienne directive Compose, devenue obsolete avec Docker Compose v2 :
+# version: '3.8'
+
+services:
+  # Base de données pour Identity & Auth
+  identity-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: identity_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${IDENTITY_DB_PORT:-5431}:5432"
+
+  # Base de données pour Catalog
+  catalog-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: catalog_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${CATALOG_DB_PORT:-5432}:5432"
+
+  # Base de données pour Request
+  request-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: request_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${REQUEST_DB_PORT:-5433}:5432"
+
+  # Base de données pour Business
+  business-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: business_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${BUSINESS_DB_PORT:-5434}:5432"
+
+  # Base de données pour Payment
+  payment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${PAYMENT_DB_PORT:-5435}:5432"
+
+  # Base de données pour Support (Chat & Notifs)
+  support-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: support_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "${SUPPORT_DB_PORT:-5436}:5432"
+
+  # Message Broker (pour la communication asynchrone)
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"

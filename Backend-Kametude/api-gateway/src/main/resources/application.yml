@@ -1,0 +1,95 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # Les microservices historiques ajoutent parfois leurs propres
+          # en-tetes CORS. Sans deduplication, le navigateur recoit par exemple
+          # "http://localhost:5173,*" et rejette toute la reponse.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
+          routes:
+            - id: identity-auth
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/api/auth/**
+            - id: identity-profiles
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                # Ancien chemin avant integration : Path=/profiles/**
+                - Path=/api/profiles/**,/api/verifications/**,/api/admin/verifications/**,/api/admin/profiles/**,/api/students/**
+            - id: catalog-service
+              uri: ${CATALOG_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/gigs/**,/api/categories/**,/api/cities/**
+            - id: request-service
+              uri: ${REQUEST_SERVICE_URL:http://localhost:8082}
+              predicates:
+                # Le prefixe /api/v1 correspond au contrat actuellement implemente.
+                - Path=/api/v1/requests/**,/api/v1/proposals/**
+            - id: business-service
+              uri: ${BUSINESS_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/orders/**,/api/deliverables/**,/api/revisions/**,/api/reviews/**,/api/disputes/**,/api/abuse-reports/**,/api/admin/abuse-reports/**,/api/student-stats/**
+            - id: payment-service
+              uri: ${PAYMENT_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/payments/**
+            - id: support-service-http
+              uri: ${SUPPORT_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/chat/**,/api/notifications/**,/api/storage/**
+            - id: support-service-websocket
+              uri: ${SUPPORT_SERVICE_WS_URL:ws://localhost:8086}
+              predicates:
+                - Path=/ws/**
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origin-patterns:
+                  - ${FRONTEND_URL:http://localhost:5173}
+                  - ${FRONTEND_ALT_URL:http://127.0.0.1:5173}
+                  # Autorise l'URL reseau affichee par Vite en developpement.
+                  - ${FRONTEND_LAN_PATTERN:http://*:5173}
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowed-headers: "*"
+                exposed-headers:
+                  - Location
+                allow-credentials: true
+                max-age: 3600
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+
+jwt:
+  # Doit etre identique a JWT_SECRET dans identity-service.
+  secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+
+identity:
+  service:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    access-timeout: ${IDENTITY_ACCESS_TIMEOUT:2s}
+
+internal:
+  service-token: ${INTERNAL_SERVICE_TOKEN:change-this-internal-token}
