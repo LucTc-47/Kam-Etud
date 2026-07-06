@@ -44,6 +44,21 @@ Depuis la racine du dépôt :
 
 Le script démarre les bases PostgreSQL Docker, les sept microservices, l'API Gateway, puis Vite.
 
+Créer/restaurer les comptes de démonstration :
+
+```powershell
+.\Backend-Kametude\scripts\seed-demo-users.ps1
+```
+
+Comptes disponibles :
+
+```text
+admin@kametud.com     / 123456789!
+moderator@kametud.com / 123456789!
+student@kametud.com   / 123456789!
+client@kametud.com    / 123456789!
+```
+
 URLs locales :
 
 | Composant | URL |

@@ -22,6 +22,33 @@ La Gateway reçoit toutes les requêtes publiques sur `http://localhost:8080`, v
 
 La communication actuelle est REST synchrone avec Spring REST Client et URLs configurables par environnement. Les routes internes utilisent `INTERNAL_SERVICE_TOKEN` et ne sont pas exposées par la Gateway. Aucun message broker n'est requis pour le fonctionnement local actuel; le service `rabbitmq` présent dans `docker-compose.yml` reste prévu pour une évolution asynchrone ultérieure.
 
+### Comptes de démonstration
+
+Après démarrage local, créer ou restaurer les quatre comptes de test avec :
+
+```powershell
+.\scripts\seed-demo-users.ps1
+```
+
+à lancer depuis `Backend-Kametude`, ou bien :
+
+```powershell
+.\Backend-Kametude\scripts\seed-demo-users.ps1
+```
+
+depuis la racine du dépôt.
+
+Comptes créés/mis à jour :
+
+| Rôle | Email | Mot de passe |
+| --- | --- | --- |
+| Admin | `admin@kametud.com` | `123456789!` |
+| Modérateur | `moderator@kametud.com` | `123456789!` |
+| Étudiant vérifié | `student@kametud.com` | `123456789!` |
+| Client | `client@kametud.com` | `123456789!` |
+
+Le script est idempotent : il peut être relancé sans créer de doublons. Il remet ces comptes en état actif et marque l'étudiant comme vérifié pour faciliter les tests locaux.
+
 ### Ports PostgreSQL locaux
 
 Le `docker-compose.yml` expose par défaut `5431` à `5436`. Le script racine `start-local.ps1` utilise par défaut `5632` à `5636` pour éviter les ports Windows souvent réservés, puis transmet les bons `DB_URL` aux services.
@@ -88,6 +115,7 @@ L'ordre limite les erreurs temporaires : Identity/Catalog d'abord, domaines mét
 Lorsque les services sont démarrés et que les quatre comptes de démonstration existent, exécuter depuis `Backend-Kametude` :
 
 ```powershell
+.\scripts\seed-demo-users.ps1
 .\scripts\local-smoke-test.ps1
 ```
 
