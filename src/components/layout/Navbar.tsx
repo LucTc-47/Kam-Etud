@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import NotificationBell from "./NotificationBell";
+const logoFull ="logoFull.png";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -59,15 +60,16 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/50 backdrop-blur-xl border-b border-border">
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg bg-gradient-hero flex items-center justify-center">
-            <span className="text-primary-foreground font-display font-bold text-lg">K</span>
+          <div className="flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all">
+            <img
+              src={logoFull}
+              alt="Kam'Etud - Retour à l'accueil"
+              className="h-7 w-auto md:h-9 object-contain select-none"
+            />
           </div>
-          <span className="font-display font-bold text-xl text-foreground">
-            Kam'<span className="text-gradient-primary">Etud</span>
-          </span>
         </Link>
 
         <div className="hidden md:flex items-center gap-8">
