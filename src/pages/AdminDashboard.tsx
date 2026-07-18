@@ -290,10 +290,14 @@ const AdminDashboard = () => {
         toast({ title: t.exportLaunched + " Excel", description: t.downloadSoon });
       } else {
         const doc = new jsPDF();
-        doc.setFontSize(18);
-        doc.text(t.ad_report_title, 14, 22);
-        doc.setFontSize(10);
-        doc.text(`${t.pf_cv_gen} ${new Date().toLocaleDateString(locale)}`, 14, 30);
+        doc.setFillColor(16, 122, 87);
+        doc.rect(0, 0, 210, 32, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(20);
+        doc.text(t.ad_report_title, 14, 14);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+        doc.text(`${t.pf_cv_gen} ${new Date().toLocaleDateString(locale)}`, 14, 22);
+        doc.setTextColor(20, 20, 20);
 
         // Stats
         doc.setFontSize(14);
@@ -307,6 +311,7 @@ const AdminDashboard = () => {
             [t.revenue, `${totalRevenue.toLocaleString()} FCFA`],
             [t.disputes, disputedOrders.toString()],
           ],
+          headStyles: { fillColor: [16, 122, 87] },
         });
 
         // Orders table
@@ -318,6 +323,7 @@ const AdminDashboard = () => {
           head: [[t.client, t.student, t.service, t.amount, t.status]],
           body: orders.slice(0, 50).map(o => [o.clientName, o.studentName, o.gigTitle, `${o.budget} FCFA`, o.status]),
           styles: { fontSize: 8 },
+          headStyles: { fillColor: [16, 122, 87] },
         });
 
         doc.save(`KamEtud_Rapport_${new Date().toISOString().slice(0, 10)}.pdf`);
