@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useLanguage } from "@/contexts/LanguageContext";
+const logoFull ="logoFull.png";
 
 const Footer = () => {
   const { t } = useLanguage();
@@ -8,12 +9,15 @@ const Footer = () => {
       <div className="container mx-auto px-4 py-16">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           <div className="md:col-span-1">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-9 h-9 rounded-lg bg-gradient-gold flex items-center justify-center">
-                <span className="font-display font-bold text-lg text-foreground">K</span>
-              </div>
-              <span className="font-display font-bold text-xl">Kam'Etud</span>
-            </div>
+            <Link to="/" className="flex items-center gap-2">
+                      <div className="flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all">
+                        <img
+                          src={logoFull}
+                          alt="Kam'Etud - Retour à l'accueil"
+                          className="h-7 w-auto md:h-9 object-contain select-none"
+                        />
+                      </div>
+                    </Link>
             <p className="text-sm opacity-70 leading-relaxed">
               {t.ft_tagline}
             </p>

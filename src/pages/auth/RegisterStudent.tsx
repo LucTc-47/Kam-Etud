@@ -21,6 +21,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { validateCameroonPhone } from "@/lib/utils";
 
+const logoFull ="logoFull.png";
 const SKILLS = [
   "Rédaction académique", "Programmation", "Design graphique", "Traduction",
   "Tutorat mathématiques", "Tutorat physique", "Comptabilité", "Marketing digital",
@@ -135,12 +136,15 @@ const RegisterStudent = () => {
     <div className="min-h-screen bg-gradient-warm py-8 px-4">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-4">
-            <div className="w-9 h-9 rounded-lg bg-gradient-hero flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-lg">K</span>
-            </div>
-            <span className="font-display font-bold text-xl text-foreground">Kam'<span className="text-gradient-primary">Etud</span></span>
-          </Link>
+          <Link to="/" className="flex items-center justify-center gap-2">
+                      <div className="flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all">
+                        <img
+                          src={logoFull}
+                          alt="Kam'Etud - Retour à l'accueil"
+                          className="h-7 w-auto md:h-9 object-contain select-none"
+                        />
+                      </div>
+                    </Link>
           <h1 className="text-2xl font-display font-bold text-foreground">{t.au_signup_student}</h1>
           <p className="text-muted-foreground mt-1">{t.au_signup_student_sub}</p>
         </div>

@@ -5,19 +5,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+const logoFull ="logoFull.png";
 const Register = () => {
   const { t } = useLanguage();
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-warm px-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-gradient-hero flex items-center justify-center">
-              <span className="text-primary-foreground font-display font-bold text-xl">K</span>
+          <Link to="/" className="flex items-center justify-center gap-2">
+            <div className="flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all">
+              <img
+                src={logoFull}
+                alt="Kam'Etud - Retour à l'accueil"
+                className="h-7 w-auto md:h-9 object-contain select-none"
+              />
             </div>
-            <span className="font-display font-bold text-2xl text-foreground">
-              Kam'<span className="text-gradient-primary">Etud</span>
-            </span>
           </Link>
           <h1 className="text-2xl font-display font-bold text-foreground">{t.au_create_account}</h1>
           <p className="text-muted-foreground mt-1">{t.au_choose_profile}</p>
