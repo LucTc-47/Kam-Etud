@@ -233,7 +233,7 @@ const StudentProfile = () => {
     if (studentGigs.length) {
       autoTable(doc, {
         head: [[t.pf_cv_offered, t.pf_cv_from]],
-        body: studentGigs.map((g) => [g.title, `${g.tiers.basique.price.toLocaleString()} FCFA`]),
+        body: studentGigs.map((g) => [g.title, `${g.tiers.basique.price.toLocaleString().replace(/[\u00A0\u202F]/g, " ")} FCFA`]),
         theme: "striped",
         headStyles: { fillColor: [212, 168, 65] },
       });

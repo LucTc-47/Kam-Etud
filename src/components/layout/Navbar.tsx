@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import NotificationBell from "./NotificationBell";
-const logoFull ="logoFull.png";
+const logoFull ="/logoFull.png";
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);

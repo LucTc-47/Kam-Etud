@@ -197,8 +197,8 @@ const fr = {
   pf_cv_skills: "Compétences", pf_cv_jobs: "Missions réalisées",
   pf_cv_rating: "Note moyenne", pf_cv_level: "Niveau", pf_cv_response: "Temps de réponse",
   pf_cv_offered: "Service proposé", pf_cv_from: "À partir de",
-  pf_cv_footer: "Généré sur Kam'Etud — la plateforme camerounaise des étudiants freelances",
-  pf_cv_title: "Kam'Etud — CV",
+  pf_cv_footer: "Généré sur Kam'Etud - la plateforme camerounaise des étudiants freelances",
+  pf_cv_title: "Kam'Etud - CV",
   // ---------- OrderPage ----------
   op_gig_404: "Gig introuvable",
   op_h: "Passer commande", op_by: "par",
@@ -361,7 +361,7 @@ const fr = {
   ad_preview_img: "Aperçu image", ad_zoom_in: "Zoomer", ad_zoom_out: "Dézoomer",
   ad_reset_zoom: "Réinitialiser", ad_download: "Télécharger",
   ad_preview: "Aperçu", ad_download_err: "Téléchargement impossible",
-  ad_report_title: "Kam'Etud — Rapport Admin",
+  ad_report_title: "Kam'Etud - Rapport Admin",
   md_validate_deliv: "Valider livrable",
   author: "Auteur",
 };
