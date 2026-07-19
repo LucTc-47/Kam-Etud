@@ -1,0 +1,82 @@
+name: CI Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+    paths:
+      - "frontend-KamEtude/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - "eslint.config.*"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+  pull_request:
+    branches:
+      - main
+      - dev
+    paths:
+      - "frontend-KamEtude/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.*"
+      - "tsconfig*.json"
+      - "eslint.config.*"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+
+env:
+  # Dans ce depot, le frontend React/Vite est a la racine.
+  # Si ton depot GitHub utilise frontend-KamEtude/, remplace "." par "frontend-KamEtude".
+  FRONTEND_DIR: "."
+
+jobs:
+  frontend:
+    name: Lint, typecheck and build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      # Recupere le code source du depot.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Installe Node.js avec le cache npm base sur package-lock.json.
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ env.FRONTEND_DIR }}/package-lock.json
+
+      # Installe les dependances de maniere reproductible.
+      - name: Install dependencies
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm ci
+
+      # Verifie les regles ESLint du projet.
+      - name: Run ESLint
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run lint
+
+      # Verifie le typage TypeScript sans generer de fichiers.
+      - name: TypeScript typecheck
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npx tsc --noEmit
+
+      # Compile l'application Vite pour valider le build de production.
+      - name: Build frontend
+        working-directory: ${{ env.FRONTEND_DIR }}
+        run: npm run build
