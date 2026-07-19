@@ -21,7 +21,7 @@ import { GoogleButton } from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { validateCameroonPhone } from "@/lib/utils";
 
-const logoFull ="logoFull.png";
+const logoFull ="/logoFull.png";
 const SKILLS = [
   "Rédaction académique", "Programmation", "Design graphique", "Traduction",
   "Tutorat mathématiques", "Tutorat physique", "Comptabilité", "Marketing digital",
