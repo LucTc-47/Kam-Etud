@@ -11,7 +11,7 @@ const SEO = ({ title, description, keywords }: SEOProps) => {
   const { locale } = useLanguage();
 
   useEffect(() => {
-    const baseTitle = "Kam'Etud — Plateforme Freelance Étudiante Cameroun";
+    const baseTitle = "Kam'Etud - Plateforme Freelance Étudiante Cameroun";
     document.title = title ? `${title} | Kam'Etud` : baseTitle;
 
     // Meta description

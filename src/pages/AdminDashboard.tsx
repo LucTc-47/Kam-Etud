@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Users, DollarSign, ShoppingBag, AlertTriangle, CheckCircle, XCircle,
+  Users, Coins, ShoppingBag, AlertTriangle, CheckCircle, XCircle,
   Eye, Search, TrendingUp, Shield, Clock, BarChart3,
   Ban, MapPin, Tag, Plus, Trash2, FileSpreadsheet, FileText, Loader2, LogOut,
   ZoomIn, ZoomOut, Download, RotateCcw,
@@ -159,7 +159,7 @@ const AdminDashboard = () => {
 
   const STATS = [
     { label: t.activeUsers, value: totalUsers.toLocaleString(), icon: Users, color: "text-primary" },
-    { label: t.revenue, value: `${(totalRevenue / 1000).toFixed(0)}K`, icon: DollarSign, color: "text-secondary" },
+    { label: t.revenue, value: `${(totalRevenue / 1000).toFixed(0)}K`, icon: Coins, color: "text-secondary" },
     { label: t.orders, value: totalOrders.toLocaleString(), icon: ShoppingBag, color: "text-accent" },
     { label: t.disputes, value: disputedOrders.toString(), icon: AlertTriangle, color: "text-destructive" },
   ];
