@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  AlertTriangle, CheckCircle, XCircle, DollarSign,
+  AlertTriangle, CheckCircle, XCircle, Coins,
   Scale, Shield, Clock, Loader2, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -199,7 +199,7 @@ const ModeratorDashboard = () => {
                               <div className="space-y-4 py-4">
                                 <Textarea placeholder={t.md_note_ph} value={moderatorNote} onChange={(e) => setModeratorNote(e.target.value)} />
                                 <div className="flex gap-2">
-                                  <Button className="flex-1" variant="outline" onClick={() => handleResolve(dispute.id, "resolved_client")}><DollarSign className="w-4 h-4 mr-1" /> {t.md_refund}</Button>
+                                  <Button className="flex-1" variant="outline" onClick={() => handleResolve(dispute.id, "resolved_client")}><Coins className="w-4 h-4 mr-1" /> {t.md_refund}</Button>
                                   <Button className="flex-1 bg-gradient-hero hover:opacity-90" onClick={() => handleResolve(dispute.id, "resolved_student")}><CheckCircle className="w-4 h-4 mr-1" /> {t.md_validate_deliv}</Button>
                                 </div>
                                 <Button variant="outline" className="w-full text-destructive" onClick={() => {

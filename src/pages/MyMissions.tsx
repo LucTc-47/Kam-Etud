@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Clock, CheckCircle, AlertTriangle, Package, RotateCcw, XCircle,
-  Upload, DollarSign, Loader2, MessageSquare,
+  Upload, Coins, Loader2, MessageSquare,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Layout from "@/components/layout/Layout";
@@ -156,7 +156,7 @@ const MyMissions = () => {
               </div>
               <div className="flex items-center gap-2">
                 <Badge className={config.className}><config.icon className="w-3 h-3 mr-1" /> {config.label}</Badge>
-                <span className="font-display font-bold text-primary flex items-center gap-1"><DollarSign className="w-4 h-4" /> {order.budget.toLocaleString()} FCFA</span>
+                <span className="font-display font-bold text-primary flex items-center gap-1"><Coins className="w-4 h-4" /> {order.budget.toLocaleString()} FCFA</span>
               </div>
             </div>
             <p className="text-sm text-muted-foreground mb-4">{order.description}</p>
