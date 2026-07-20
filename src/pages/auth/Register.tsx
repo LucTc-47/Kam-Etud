@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const logoFull ="logoFull.png";
+const logoFull ="/logoFull.png";
 const Register = () => {
   const { t } = useLanguage();
   return (

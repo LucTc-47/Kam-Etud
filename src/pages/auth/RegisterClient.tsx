@@ -16,7 +16,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { validateCameroonPhone } from "@/lib/utils";
 
 const logoFull ="/logoFull.png";
-const FALLBACK_CITIES = ["Yaoundé", "Douala", "Bafoussam", "Bamenda", "Garoua", "Maroua", "Bertoua", "Ebolowa", "Ngaoundéré", "Buea"];
+const FALLBACK_CITIES = ["Yaoundé", "Douala", "Dschang", "Bafoussam", "Bamenda", "Garoua", "Maroua", "Bertoua", "Ebolowa", "Ngaoundéré", "Buea"];
 
 const RegisterClient = () => {
   const [showPassword, setShowPassword] = useState(false);
