@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,8 +7,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { Confetti } from "@/components/ui/Confetti";
 
 // Lazy loading components
 const Index = lazy(() => import("./pages/Index"));
@@ -42,6 +43,21 @@ const PageLoader = () => (
   </div>
 );
 
+const GlobalConfetti = () => {
+  const location = useLocation();
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    if (location.state && (location.state as any).confetti) {
+      setShowConfetti(true);
+      // Clean up state to prevent trigger on refresh
+      window.history.replaceState({ ...location.state, confetti: undefined }, document.title);
+    }
+  }, [location]);
+
+  return <Confetti active={showConfetti} onComplete={() => setShowConfetti(false)} />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
@@ -52,6 +68,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <BrowserRouter>
+                <GlobalConfetti />
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                     <Route path="/" element={<Index />} />
