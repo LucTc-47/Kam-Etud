@@ -43,15 +43,20 @@ const PageLoader = () => (
   </div>
 );
 
+interface NavigationState {
+  confetti?: boolean;
+}
+
 const GlobalConfetti = () => {
   const location = useLocation();
   const [showConfetti, setShowConfetti] = useState(false);
 
   useEffect(() => {
-    if (location.state && (location.state as any).confetti) {
+    const state = location.state as NavigationState | null;
+    if (state?.confetti) {
       setShowConfetti(true);
       // Clean up state to prevent trigger on refresh
-      window.history.replaceState({ ...location.state, confetti: undefined }, document.title);
+      window.history.replaceState({ ...state, confetti: undefined }, document.title);
     }
   }, [location]);
 
