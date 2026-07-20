@@ -119,14 +119,14 @@ const RegisterStudent = () => {
 
       toast({ title: t.au_sent, description: t.au_sent_d });
       setIsLoading(false);
-      navigate("/");
+      navigate("/", { state: { confetti: true } });
     } catch (e: unknown) {
       console.error("Verification upload error:", e);
       toast({ title: "Erreur", description: "Compte créé mais erreur lors de l'envoi des documents. Contactez le support.", variant: "destructive" });
       setIsLoading(false);
       // Le compte et son JWT existent deja, meme si l'envoi KYC a echoue.
       // Ancien comportement : navigate("/connexion");
-      navigate("/");
+      navigate("/", { state: { confetti: true } });
     }
   };
 

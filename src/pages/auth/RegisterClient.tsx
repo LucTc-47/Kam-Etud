@@ -60,7 +60,7 @@ const RegisterClient = () => {
       toast({ title: t.au_signup_ok, description: t.au_signup_ok_d });
       // Le backend renvoie maintenant un JWT des l'inscription.
       // Ancien comportement : navigate("/connexion");
-      navigate("/");
+      navigate("/", { state: { confetti: true } });
     } else {
       setError(registrationError || t.au_err_register);
     }
