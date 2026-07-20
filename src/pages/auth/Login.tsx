@@ -13,7 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { useLanguage } from "@/contexts/LanguageContext";
 
-const logoFull ="logoFull.png";
+const logoFull ="/logoFull.png";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

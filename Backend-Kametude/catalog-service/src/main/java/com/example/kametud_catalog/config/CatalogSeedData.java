@@ -30,7 +30,7 @@ public class CatalogSeedData implements CommandLineRunner {
         }
         if (cityRepository.count() == 0) {
             cityRepository.saveAll(List.of(
-                    city("Yaoundé"), city("Douala"), city("Bafoussam"),
+                    city("Yaoundé"), city("Douala"), city("Dschang"), city("Bafoussam"),
                     city("Bamenda"), city("Garoua"), city("Maroua"),
                     city("Bertoua"), city("Ebolowa"), city("Ngaoundéré"), city("Buea")
             ));
