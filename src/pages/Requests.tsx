@@ -31,11 +31,16 @@ const Requests = () => {
   const [form, setForm] = useState({ title: "", description: "", category: "", location: "", budget: "", deadline: "" });
 
   const isClient = user?.role === "client";
+  const today = new Date().toISOString().split("T")[0];
 
   const submit = async () => {
     const budget = parseInt(form.budget) || 0;
     if (budget <= 0) {
       toast({ title: t.c_error, description: t.c_err_invalid_price, variant: "destructive" });
+      return;
+    }
+    if (form.deadline && form.deadline < today) {
+      toast({ title: t.c_error, description: "La date ne peut pas etre anterieure a aujourd'hui.", variant: "destructive" });
       return;
     }
     try {
@@ -92,7 +97,7 @@ const Requests = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label>{t.rq_budget}</Label><Input type="number" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} placeholder="50000" /></div>
-                    <div className="space-y-1"><Label>{t.rq_deadline}</Label><Input type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
+                    <div className="space-y-1"><Label>{t.rq_deadline}</Label><Input type="date" min={today} value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} /></div>
                   </div>
                   <Button className="w-full bg-gradient-hero" onClick={submit} disabled={createReq.isPending || !form.title || !form.budget}>
                     {createReq.isPending ? t.rq_publishing : t.rq_publish}

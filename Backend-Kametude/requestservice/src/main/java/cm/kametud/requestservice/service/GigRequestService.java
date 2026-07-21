@@ -37,6 +37,9 @@ public class GigRequestService {
         request.setCategory(dto.getCategory().trim());
         request.setLocation(dto.getLocation());
         LocalDate deadline = dto.getDeadline() == null ? LocalDate.now().plusDays(7) : dto.getDeadline();
+        if (deadline.isBefore(LocalDate.now())) {
+            throw new RequestDomainException(HttpStatus.BAD_REQUEST, "La date ne peut pas etre anterieure a aujourd'hui");
+        }
         request.setDeadline(deadline.atTime(LocalTime.MAX));
         // Ancien code : clientId et clientName provenaient directement du DTO.
         request.setClientId(authenticatedClientId);
