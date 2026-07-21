@@ -5,23 +5,34 @@
 const ACCESS_TOKEN_KEY = "kametud_access_token";
 const REFRESH_TOKEN_KEY = "kametud_refresh_token";
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const AUTH_STORAGE_MODE = import.meta.env.DEV && import.meta.env.VITE_AUTH_STORAGE === "session"
+  ? "session"
+  : "local";
+
+function getAuthStorage() {
+  if (typeof window === "undefined") return null;
+  return AUTH_STORAGE_MODE === "session" ? window.sessionStorage : window.localStorage;
+}
 
 function getStorageValue(key: string) {
-  return typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  return getAuthStorage()?.getItem(key) ?? null;
 }
 
 export const authTokenStorage = {
+  mode: AUTH_STORAGE_MODE,
   getAccessToken: () => getStorageValue(ACCESS_TOKEN_KEY),
   getRefreshToken: () => getStorageValue(REFRESH_TOKEN_KEY),
   setTokens: (accessToken: string, refreshToken?: string) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-    if (refreshToken) window.localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    const storage = getAuthStorage();
+    if (!storage) return;
+    storage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    if (refreshToken) storage.setItem(REFRESH_TOKEN_KEY, refreshToken);
   },
   clear: () => {
-    if (typeof window === "undefined") return;
-    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-    window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+    const storage = getAuthStorage();
+    if (!storage) return;
+    storage.removeItem(ACCESS_TOKEN_KEY);
+    storage.removeItem(REFRESH_TOKEN_KEY);
   },
 };
 

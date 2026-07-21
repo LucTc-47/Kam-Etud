@@ -90,12 +90,12 @@ const CreateGig = () => {
 
   const buildTier = (tier: 'basique' | 'standard' | 'premium', label: string) => {
     const price = parseInt(form[tier].price) || 0;
-    const days = parseInt(form[tier].deliveryDays) || 1;
+    const days = parseInt(form[tier].deliveryDays) || 0;
     return {
       name: label,
       price: price > 0 ? price : 0,
       description: form[tier].description || label,
-      deliveryDays: days > 0 ? days : 1,
+      deliveryDays: days > 0 ? days : 0,
       features: form[tier].features.filter(f => f.trim().length > 0),
     };
   };
@@ -114,6 +114,10 @@ const CreateGig = () => {
 
     if (tiers.basique.price <= 0 || tiers.standard.price <= 0 || tiers.premium.price <= 0) {
       toast({ title: t.c_error, description: t.c_err_invalid_price, variant: "destructive" });
+      return;
+    }
+    if (tiers.basique.deliveryDays <= 0 || tiers.standard.deliveryDays <= 0 || tiers.premium.deliveryDays <= 0) {
+      toast({ title: t.c_error, description: "Le delai de livraison doit etre d'au moins 1 jour.", variant: "destructive" });
       return;
     }
 
@@ -153,8 +157,8 @@ const CreateGig = () => {
       <CardHeader><CardTitle className="font-display text-base capitalize">{label}</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1"><Label className="text-xs">{t.cg_price}</Label><Input type="number" placeholder="0" value={form[tier].price} onChange={(e) => updateTier(tier, "price", e.target.value)} /></div>
-          <div className="space-y-1"><Label className="text-xs">{t.cg_delay}</Label><Input type="number" placeholder="1" value={form[tier].deliveryDays} onChange={(e) => updateTier(tier, "deliveryDays", e.target.value)} /></div>
+          <div className="space-y-1"><Label className="text-xs">{t.cg_price}</Label><Input type="number" min="1" placeholder="0" value={form[tier].price} onChange={(e) => updateTier(tier, "price", e.target.value)} /></div>
+          <div className="space-y-1"><Label className="text-xs">{t.cg_delay}</Label><Input type="number" min="1" placeholder="1" value={form[tier].deliveryDays} onChange={(e) => updateTier(tier, "deliveryDays", e.target.value)} /></div>
         </div>
         <div className="space-y-1"><Label className="text-xs">{t.cg_tier_desc}</Label><Input placeholder={t.cg_tier_desc_ph} value={form[tier].description} onChange={(e) => updateTier(tier, "description", e.target.value)} /></div>
         <div className="space-y-1">
