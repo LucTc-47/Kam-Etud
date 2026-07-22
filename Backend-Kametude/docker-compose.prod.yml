@@ -9,13 +9,20 @@
 #   - les ports 80, 443 et 3000-3999 appartiennent a l'autre application ;
 #   - l'utilisateur de deploiement n'a pas les droits root.
 #
+# La machine heberge deja la production de rctt.academy et une experimentation
+# reseau Mininet, non conteneurisee et sans plafond memoire. Toute la
+# configuration vise a ne jamais leur nuire.
+#
 # Consequences :
 #   - un seul Postgres heberge les six bases (voir postgres/init-databases.sh) ;
-#   - chaque JVM est plafonnee, sinon Java reserve 25 % de la RAM par service ;
+#   - chaque conteneur porte un mem_limit : un service qui derive est tue lui,
+#     avant d'epuiser la RAM systeme et de faire tomber les voisins ;
+#   - les JVM sont bridees au minimum viable, sinon Java reserve 25 % de la RAM
+#     de l'hote par service, soit environ 925 Mo x 7 ;
 #   - RabbitMQ a ete retire : aucun pom.xml ne declare de dependance AMQP et
 #     toute la communication inter-services passe par Spring REST Client ;
-#   - un seul port est publie, sur 127.0.0.1, a destination du reverse proxy
-#     deja installe sur la machine.
+#   - l'exposition passe par le Traefik deja present, via des labels poses sur
+#     NOS conteneurs. Ni sa configuration ni ses conteneurs ne sont modifies.
 
 # Nom de projet fige. Sans lui, Compose deduirait « backend-kametude » du nom du
 # dossier : les volumes changeraient de nom si le depot etait clone ailleurs,
@@ -34,22 +41,55 @@ x-service-defaults: &service-defaults
       max-file: "3"
 
 x-java-defaults: &java-defaults
-  # Sans ces options, la JVM voit les 3,7 Go de l'hote et se reserve 25 % de heap
-  # par service, soit environ 925 Mo x 7. SerialGC est le ramasse-miettes le plus
-  # econome en memoire sur les petits tas et les machines a deux coeurs.
+  # Reglage taille au plus juste pour cohabiter avec les applications voisines.
+  #
+  # MaxRAMPercentage=50 : la JVM se cale sur le mem_limit du conteneur, pas sur
+  #   les 3,7 Go de l'hote. Sans lui, chaque service reserverait ~925 Mo.
+  # UseSerialGC : le ramasse-miettes le plus econome sur petits tas et 2 vCPU.
+  # TieredStopAtLevel=1 : compilation C1 uniquement, ce qui divise le cache de
+  #   code. On perd en performance de pointe, invisible a 30 utilisateurs.
+  # Xss256k : 200 threads a 1 Mo de pile par defaut, c'est 200 Mo pour rien.
   JAVA_TOOL_OPTIONS: >-
     -XX:MaxRAMPercentage=50.0
     -XX:+UseSerialGC
-    -XX:MaxMetaspaceSize=128m
-    -Xss512k
+    -XX:TieredStopAtLevel=1
+    -XX:MaxMetaspaceSize=96m
+    -Xss256k
+
+  # Les beans sont instancies a la premiere utilisation au lieu du demarrage.
+  # Contrepartie : le premier appel a chaque ecran est plus lent de 200-400 ms.
+  SPRING_MAIN_LAZY_INITIALIZATION: "true"
+
+  # Spring reserve 200 threads Tomcat par defaut. A 30 utilisateurs, 20 suffisent.
+  SERVER_TOMCAT_THREADS_MAX: "20"
+  SERVER_TOMCAT_THREADS_MIN_SPARE: "2"
+
+  # Le gain le plus souvent oublie : chaque connexion coute 5 a 10 Mo cote
+  # PostgreSQL. Par defaut Hikari en ouvre 10 par service, soit 60 au total.
+  # A 5, on divise par deux la memoire consommee par le serveur de bases.
+  SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+  SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE: "1"
+
   # application.yaml active show-sql en developpement. En production le SQL
-  # complet noierait les logs et remplirait le disque.
+  # complet noierait les logs et remplirait le disque partage.
   SPRING_JPA_SHOW_SQL: "false"
 
 services:
   postgres:
     <<: *service-defaults
     image: postgres:16-alpine
+    # Reglages tailles pour une instance unique hebergeant six petites bases
+    # sur une machine partagee. Les valeurs par defaut de l'image visent un
+    # serveur dedie et reserveraient plusieurs centaines de Mo inutiles.
+    # max_connections=40 couvre les 6 services x 5 connexions Hikari, le seed
+    # et une session psql d'administration.
+    command: >-
+      postgres
+      -c shared_buffers=48MB
+      -c max_connections=40
+      -c work_mem=2MB
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=192MB
     environment:
       # Role d'administration. Il cree les six bases au premier demarrage
       # puis ne sert plus : chaque service se connecte avec son propre role.
@@ -79,7 +119,7 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    mem_limit: 320m
+    mem_limit: 224m
     # Aucun port publie : seuls les conteneurs du reseau interne y accedent.
 
   identity-service:
@@ -99,7 +139,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       CATALOG_SERVICE_URL: http://catalog-service:8083
-    mem_limit: 360m
+    mem_limit: 256m
 
   catalog-service:
     <<: *service-defaults
@@ -118,7 +158,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
-    mem_limit: 360m
+    mem_limit: 256m
 
   request-service:
     <<: *service-defaults
@@ -139,7 +179,7 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8081
       BUSINESS_SERVICE_URL: http://business-service:8084
       SUPPORT_SERVICE_URL: http://support-service:8086
-    mem_limit: 360m
+    mem_limit: 256m
 
   business-service:
     <<: *service-defaults
@@ -161,7 +201,7 @@ services:
       CATALOG_SERVICE_URL: http://catalog-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
-    mem_limit: 360m
+    mem_limit: 256m
 
   payment-service:
     <<: *service-defaults
@@ -183,7 +223,7 @@ services:
       BUSINESS_SERVICE_URL: http://business-service:8084
       IDENTITY_SERVICE_URL: http://identity-service:8081
       SUPPORT_SERVICE_URL: http://support-service:8086
-    mem_limit: 360m
+    mem_limit: 256m
 
   support-service:
     <<: *service-defaults
@@ -206,7 +246,7 @@ services:
       STORAGE_LOCATION: ${STORAGE_LOCATION:-/app/storage}
     volumes:
       - support_storage:/app/storage
-    mem_limit: 360m
+    mem_limit: 256m
 
   api-gateway:
     <<: *service-defaults
@@ -250,7 +290,7 @@ services:
       # (curl http://127.0.0.1:8080/actuator/health). Inaccessible depuis
       # l'exterieur : ce n'est pas un contournement du reverse proxy.
       - "127.0.0.1:8080:8080"
-    mem_limit: 320m
+    mem_limit: 192m
 
   frontend:
     <<: *service-defaults
@@ -261,48 +301,102 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - api-gateway
+    # Seul conteneur de la stack a rejoindre le reseau de Traefik. Les huit
+    # autres restent sur le reseau prive « kametud », donc invisibles depuis
+    # les conteneurs voisins.
+    networks:
+      - default
+      - traefik
     ports:
-      # SEUL port ouvert de la stack, et uniquement sur 127.0.0.1.
-      # Le reverse proxy deja present sur le VPS (ports 80/443, gere par
-      # l'autre application) doit pointer son vhost ici. Voir DEPLOY.md.
+      # Publie sur la boucle locale uniquement, pour diagnostiquer en SSH.
+      # Le trafic public ne passe pas par la : Traefik joint le conteneur
+      # directement par le reseau Docker.
       - "127.0.0.1:${PUBLIC_HTTP_PORT:-8090}:8080"
+    labels:
+      # Le Traefik deja installe sur la machine decouvre ces labels tout seul.
+      # Sa configuration reste intacte : on ne touche ni a son traefik.yml,
+      # ni a ses conteneurs, ni a ses routes existantes.
+      #
+      # Son provider Docker est en « exposedByDefault: false » : sans le label
+      # ci-dessous, un conteneur est purement ignore. Nos huit autres services
+      # sont donc invisibles pour lui par construction.
+      #
+      # Interrupteur d'exposition. Tant que l'enregistrement DNS ne pointe pas
+      # vers cette machine, le laisser a « false » : Traefik ignore alors
+      # totalement le conteneur, donc ne demande aucun certificat. Sinon le defi
+      # HTTP-01 de Let's Encrypt echouerait en boucle, remplirait le journal du
+      # Traefik voisin et consommerait le quota d'echecs de validation.
+      # La stack reste testable par tunnel SSH pendant ce temps.
+      # Passer a « true » puis relancer : docker compose up -d frontend
+      traefik.enable: "${TRAEFIK_ENABLE:-false}"
+
+      # Obligatoire des qu'un conteneur a plusieurs reseaux, sinon Traefik peut
+      # retenir l'adresse du mauvais et router vers le vide.
+      traefik.docker.network: ${TRAEFIK_NETWORK:-rctt_default}
+
+      # Nom de routeur distinct de ceux deja en place (rctt, rctt-staging,
+      # rctt-dev, dashboard). Un nom identique aurait ecrase leur route :
+      # c'est le seul vrai risque de cette manipulation, et il est ecarte.
+      traefik.http.routers.kametud.rule: Host(`${PUBLIC_SITE_HOST:?Set PUBLIC_SITE_HOST in .env.prod}`) || Host(`www.${PUBLIC_SITE_HOST}`)
+      traefik.http.routers.kametud.entrypoints: websecure
+      traefik.http.routers.kametud.tls.certresolver: letsencrypt
+      traefik.http.services.kametud.loadbalancer.server.port: "8080"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 10s
+    mem_limit: 32m
+
+  # Ancien service « cloudflared » retire.
+  # Il repondait a l'hypothese d'un VPS sans reverse proxy exploitable. La
+  # machine cible expose un Traefik v3 avec resolveur Let's Encrypt deja
+  # configure : quelques labels suffisent, ce qui evite 96 Mo de RAM, la
+  # migration DNS vers Cloudflare et le passage du trafic chez un tiers.
+
+  seed:
+    <<: *service-defaults
+    image: postgres:16-alpine
+    # Conteneur ephemere : il cree les comptes admin et moderator, puis sort.
+    # « exited (0) » dans « docker compose ps » est le resultat attendu.
+    #
+    # Ces deux roles ne peuvent pas etre crees par le formulaire d'inscription :
+    # AuthService.register rejette ADMIN et MODERATOR pour qu'un visiteur ne
+    # puisse pas se declarer administrateur.
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Attend que la Gateway reponde : le script s'inscrit par l'API publique
+      # pour que le profil soit cree et lie au compte, ce qu'un INSERT SQL
+      # direct ne ferait pas.
+      api-gateway:
+        condition: service_healthy
+    environment:
+      API_URL: http://api-gateway:8080
+      PGHOST: postgres
+      PGDATABASE: identity_db
+      PGUSER: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
+      PGPASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
+      SEED_PASSWORD: ${SEED_ADMIN_PASSWORD:-Admin1234!}
+    volumes:
+      - ./scripts/seed-admin.sh:/seed/seed-admin.sh:ro
+    entrypoint: ["bash", "/seed/seed-admin.sh"]
     mem_limit: 64m
 
-  cloudflared:
-    <<: *service-defaults
-    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
-    depends_on:
-      - frontend
-    # Les ports 80 et 443 du VPS appartiennent a une application tierce que nous
-    # ne pouvons pas reconfigurer. Le tunnel ouvre une connexion *sortante* vers
-    # Cloudflare, qui sert ensuite le site en HTTPS : aucun port entrant n'est
-    # necessaire, et aucun droit root non plus.
-    #
-    # Le routage est defini cote Cloudflare (Zero Trust > Networks > Tunnels) :
-    # le hostname public doit pointer vers http://frontend:8080, joignable par
-    # ce conteneur via le reseau interne. Voir DEPLOY.md.
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env.prod}
-      # Sans metriques, cloudflared n'expose aucune sonde locale.
-      TUNNEL_METRICS: 0.0.0.0:2000
-    healthcheck:
-      test: ["CMD", "cloudflared", "--version"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    mem_limit: 96m
-
 networks:
+  # Reseau prive de la stack. Huit conteneurs sur neuf n'en sortent jamais.
   default:
     name: kametud_prod
+
+  # Reseau du Traefik deja present sur la machine. « external: true » signifie
+  # que Compose s'y raccorde sans jamais le creer ni le supprimer : un
+  # « docker compose down » de notre cote ne peut pas le detruire, donc ne peut
+  # pas couper les applications voisines qui l'utilisent.
+  traefik:
+    name: ${TRAEFIK_NETWORK:-rctt_default}
+    external: true
 
 volumes:
   postgres_data:

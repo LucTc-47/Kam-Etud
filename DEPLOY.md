@@ -60,17 +60,41 @@ A faire une seule fois, entierement sans root et sans intervention d'un tiers.
 
 ### 3.1 Rattacher le domaine a Cloudflare
 
-Le domaine est achete chez Namecheap ; il y reste. Seuls les serveurs de noms
-changent, l'operation est gratuite.
+Le domaine est achete chez **Domain.com**, et il y reste : la propriete ne
+change pas, on ne fait pas de transfert. Seuls les *serveurs de noms* basculent
+vers Cloudflare, qui prend alors en charge la resolution DNS. L'operation est
+gratuite et reversible.
 
-1. Creer un compte sur <https://dash.cloudflare.com> et **Add a site** :
-   `kametud.com`, plan **Free**.
-2. Cloudflare importe les enregistrements DNS existants et affiche deux
-   serveurs de noms, du type `xxx.ns.cloudflare.com`.
-3. Dans Namecheap : **Domain List** > `kametud.com` > **Manage** > section
-   **Nameservers** > choisir **Custom DNS** et saisir les deux valeurs.
-4. La propagation prend de quelques minutes a 24 h. Cloudflare envoie un mail
-   quand le domaine est actif.
+1. Creer un compte sur <https://dash.cloudflare.com>, puis **Add a site** :
+   saisir le domaine, choisir le plan **Free**.
+2. Cloudflare scanne les enregistrements DNS existants et les reprend.
+   **Verifier cette liste avant de continuer** : si une adresse mail est
+   associee au domaine, ses enregistrements MX doivent y figurer, faute de quoi
+   la messagerie tombera au basculement.
+3. Cloudflare affiche alors deux serveurs de noms, du type
+   `zita.ns.cloudflare.com` et `rick.ns.cloudflare.com`.
+4. Dans Domain.com : se connecter, ouvrir **My Domains**, cliquer sur le
+   domaine, puis l'onglet **DNS & Nameservers** > **Nameservers**.
+   Choisir l'option de serveurs personnalises — le libelle varie selon la
+   version de l'interface : *Use Custom Nameservers*, *Change Nameservers* ou
+   *I have specific nameservers for my domains*. Remplacer les valeurs
+   existantes (`ns1.domain.com`, `ns2.domain.com`...) par les deux de
+   Cloudflare, **supprimer les lignes surnumeraires**, puis enregistrer.
+5. Revenir sur Cloudflare et cliquer **Check nameservers now**. La propagation
+   prend de quelques minutes a 24 h ; Cloudflare envoie un mail des que le
+   domaine est actif.
+
+Verification en ligne de commande :
+
+```bash
+dig NS kametud.com +short     # doit renvoyer les deux serveurs cloudflare.com
+```
+
+> Si Domain.com refuse la modification, la cause est presque toujours un
+> verrou de registrar (*Domain Lock*) ou un service DNS additionnel souscrit
+> chez eux. Le verrou se desactive dans le meme ecran et protege contre les
+> transferts, pas contre un changement de serveurs de noms : il peut etre
+> reactive juste apres.
 
 ### 3.2 Creer le tunnel
 
@@ -292,7 +316,7 @@ docker inspect --format '{{.Name}} OOMKilled={{.State.OOMKilled}} exit={{.State.
 | Un service redemarre en boucle, `OOMKilled=true` | Plafond memoire trop bas, ou absence de swap. Voir §4 |
 | `502` en local sur 8090 | La gateway n'est pas encore prete (compter 3 a 5 min au demarrage) |
 | Erreur 1033 ou 502 de Cloudflare | Le tunnel est deconnecte, ou le *public hostname* ne pointe pas sur `frontend:8080`. Verifier `docker compose logs cloudflared` et l'etat du tunnel dans le tableau de bord |
-| Le site repond en local mais pas sur le domaine | Les serveurs de noms Namecheap ne pointent pas encore sur Cloudflare, ou la propagation n'est pas terminee. Verifier avec `dig NS kametud.com` |
+| Le site repond en local mais pas sur le domaine | Les serveurs de noms Domain.com ne pointent pas encore sur Cloudflare, ou la propagation n'est pas terminee. Verifier avec `dig NS kametud.com +short` |
 | `FATAL: password authentication failed` | `.env.prod` a change apres l'initialisation du volume. Voir l'avertissement du §5.5 |
 | Le site affiche l'ancienne version | Cache du service worker : `sw.js` et `index.html` sont pourtant servis en `no-cache`, forcer un rechargement dur |
 
