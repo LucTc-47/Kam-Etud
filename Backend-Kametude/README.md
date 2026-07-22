@@ -103,14 +103,24 @@ Les valeurs par défaut de ce fichier Compose (`password`, `change-this-internal
 
 ## Déploiement production (VPS)
 
-`docker-compose.prod.yml` reprend la même topologie mais impose tous les secrets via la syntaxe `${VAR:?}` : le démarrage échoue explicitement si une variable manque. Les bases et RabbitMQ n'exposent aucun port hôte, le stockage de Support est persisté dans le volume `support_storage` et les origines CORS pointent sur `https://kametud.com`.
+**La procédure complète est dans [`DEPLOY.md`](../DEPLOY.md)**, à la racine du dépôt. Résumé de la topologie de production, qui diffère volontairement du développement :
 
-```powershell
-Copy-Item .env.prod.example .env.prod   # puis renseigner chaque valeur
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+- Tous les secrets sont imposés via `${VAR:?}` : le démarrage échoue explicitement sur toute variable manquante.
+- **Un seul PostgreSQL** héberge les six bases, chacune avec son rôle propriétaire dédié (voir `postgres/init-databases.sh`). Le VPS cible n'a que 3,7 Go de RAM, partagés avec une autre application ; six instances séparées coûtaient environ 800 Mo.
+- **Aucun port de microservice n'est publié.** Seul le frontend est exposé, sur `127.0.0.1` uniquement, à destination du reverse proxy déjà installé sur la machine. Contourner l'api-gateway — donc la vérification JWT et le contrôle de bannissement — est devenu impossible.
+- Le frontend embarque un nginx qui sert le build React **et** relaie `/api` et `/ws` vers la Gateway : même origine, donc aucun préflight CORS.
+- Les données sont persistées dans les volumes `postgres_data` et `support_storage`. *Avant cette version, aucun volume n'était déclaré pour les bases : un `docker compose down` effaçait toute la production.*
+- **RabbitMQ a été retiré.** Aucun `pom.xml` ne déclare `spring-boot-starter-amqp`, aucune classe n'utilise `RabbitTemplate` ou `@RabbitListener` : le conteneur consommait environ 250 Mo sans rendre de service. Il reste dans `docker-compose.yml` pour le développement.
+
+Les images sont construites par GitHub Actions et publiées sur GHCR ; le VPS ne compile rien.
+
+```bash
+cp .env.prod.example .env.prod   # puis renseigner chaque valeur
+docker compose --env-file .env.prod -f docker-compose.prod.yml pull
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 ```
 
-`Backend-Kametude/.env.prod` est ignoré par `.gitignore` et ne doit jamais être committé. Toutes les variables attendues sont listées dans `.env.prod.example` : `JWT_SECRET`, `INTERNAL_SERVICE_TOKEN`, les identifiants des six bases, ceux de RabbitMQ, `PAYMENT_MODE` et `STORAGE_LOCATION`.
+`Backend-Kametude/.env.prod` est ignoré par `.gitignore` et ne doit jamais être committé. Toutes les variables attendues sont listées dans `.env.prod.example`.
 
 ## Démarrage local complet
 
@@ -173,8 +183,8 @@ Cette architecture est optimisée pour notre équipe de 12 étudiants, répartis
 ## Infrastructure
 - **Port Gateway :** 8080
 - **Service Discovery :** non actif en local; la Gateway utilise des URLs directes configurables.
-- **Base de données :** PostgreSQL (1 instance par service via Docker Compose)
-- **Communication :** REST synchrone via Spring REST Client; RabbitMQ est présent dans Compose mais pas requis par le workflow actuel.
+- **Base de données :** PostgreSQL. Une instance par service en développement; une instance unique hébergeant les six bases en production, pour tenir dans la RAM du VPS.
+- **Communication :** REST synchrone via Spring REST Client. RabbitMQ reste dans le Compose de développement en prévision d'une évolution asynchrone, mais n'est branché à aucun service et a été retiré de la production.
 
 ## Ports locaux harmonisés — 4 juillet 2026
 

@@ -1,0 +1,36 @@
+# Le contexte de build du frontend est la racine du depot. Sans ce fichier,
+# Docker enverrait aussi node_modules, le backend Java et tout l'historique git.
+
+.git
+.github
+.vscode
+.agents
+.artifacts
+
+node_modules
+dist
+dist-ssr
+build
+
+# Le backend a ses propres Dockerfile et .dockerignore.
+Backend-Kametude
+
+logs
+*.log
+
+# Les secrets ne doivent jamais entrer dans une image.
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Scripts de demarrage Windows, sans objet dans une image Linux.
+*.cmd
+*.ps1
+
+docs
+*.md
+!README.md
+
+.DS_Store
+Thumbs.db

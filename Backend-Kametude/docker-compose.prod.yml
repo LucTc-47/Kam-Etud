@@ -1,162 +1,137 @@
-# Production VPS compose file.
-# Load secrets with:
-# docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+# Deploiement de production sur VPS.
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+#
+# Contraintes de la machine cible, qui expliquent la plupart des choix
+# de ce fichier (voir DEPLOY.md pour le detail) :
+#   - 3,7 Go de RAM sans swap, partages avec une autre application ;
+#   - 2 vCPU ;
+#   - les ports 80, 443 et 3000-3999 appartiennent a l'autre application ;
+#   - l'utilisateur de deploiement n'a pas les droits root.
+#
+# Consequences :
+#   - un seul Postgres heberge les six bases (voir postgres/init-databases.sh) ;
+#   - chaque JVM est plafonnee, sinon Java reserve 25 % de la RAM par service ;
+#   - RabbitMQ a ete retire : aucun pom.xml ne declare de dependance AMQP et
+#     toute la communication inter-services passe par Spring REST Client ;
+#   - un seul port est publie, sur 127.0.0.1, a destination du reverse proxy
+#     deja installe sur la machine.
+
+# Nom de projet fige. Sans lui, Compose deduirait « backend-kametude » du nom du
+# dossier : les volumes changeraient de nom si le depot etait clone ailleurs,
+# et la base de production deviendrait invisible.
+name: kametud
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - default
+  logging:
+    driver: json-file
+    options:
+      # Sans plafond, les logs saturent le disque partage avec l'autre application.
+      max-size: "10m"
+      max-file: "3"
+
+x-java-defaults: &java-defaults
+  # Sans ces options, la JVM voit les 3,7 Go de l'hote et se reserve 25 % de heap
+  # par service, soit environ 925 Mo x 7. SerialGC est le ramasse-miettes le plus
+  # econome en memoire sur les petits tas et les machines a deux coeurs.
+  JAVA_TOOL_OPTIONS: >-
+    -XX:MaxRAMPercentage=50.0
+    -XX:+UseSerialGC
+    -XX:MaxMetaspaceSize=128m
+    -Xss512k
+  # application.yaml active show-sql en developpement. En production le SQL
+  # complet noierait les logs et remplirait le disque.
+  SPRING_JPA_SHOW_SQL: "false"
 
 services:
-  identity-db:
+  postgres:
+    <<: *service-defaults
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: identity_db
-      POSTGRES_USER: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
+      # Role d'administration. Il cree les six bases au premier demarrage
+      # puis ne sert plus : chaque service se connecte avec son propre role.
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:?Set POSTGRES_ADMIN_USER in .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD in .env.prod}
+      POSTGRES_DB: postgres
+      IDENTITY_DB_USERNAME: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
+      IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
+      CATALOG_DB_USERNAME: ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env.prod}
+      REQUEST_DB_USERNAME: ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod}
+      REQUEST_DB_PASSWORD: ${REQUEST_DB_PASSWORD:?Set REQUEST_DB_PASSWORD in .env.prod}
+      BUSINESS_DB_USERNAME: ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod}
+      BUSINESS_DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env.prod}
+      PAYMENT_DB_USERNAME: ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod}
+      PAYMENT_DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env.prod}
+      SUPPORT_DB_USERNAME: ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod}
+      SUPPORT_DB_PASSWORD: ${SUPPORT_DB_PASSWORD:?Set SUPPORT_DB_PASSWORD in .env.prod}
+    volumes:
+      # Ancien fichier : aucun volume n'etait declare pour les bases.
+      # Un « docker compose down » suffisait a effacer toute la production.
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/10-init-databases.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod} -d identity_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  catalog-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: catalog_db
-      POSTGRES_USER: ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env.prod}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod} -d catalog_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  request-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: request_db
-      POSTGRES_USER: ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${REQUEST_DB_PASSWORD:?Set REQUEST_DB_PASSWORD in .env.prod}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod} -d request_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  business-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: business_db
-      POSTGRES_USER: ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env.prod}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod} -d business_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  payment-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: payment_db
-      POSTGRES_USER: ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env.prod}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod} -d payment_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  support-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: support_db
-      POSTGRES_USER: ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod}
-      POSTGRES_PASSWORD: ${SUPPORT_DB_PASSWORD:?Set SUPPORT_DB_PASSWORD in .env.prod}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod} -d support_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - default
-
-  rabbitmq:
-    image: rabbitmq:3-management
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER in .env.prod}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env.prod}
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_ADMIN_USER} -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 10s
-    networks:
-      - default
+      start_period: 20s
+    mem_limit: 320m
+    # Aucun port publie : seuls les conteneurs du reseau interne y accedent.
 
   identity-service:
-    image: kametud-identity-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-identity-service:${IMAGE_TAG:-latest}
     build:
       context: ./identity-service
     depends_on:
-      identity-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8081
-      DB_URL: jdbc:postgresql://identity-db:5432/identity_db
+      DB_URL: jdbc:postgresql://postgres:5432/identity_db
       DB_USERNAME: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       CATALOG_SERVICE_URL: http://catalog-service:8083
-    ports:
-      - "8081:8081"
-    networks:
-      - default
+    mem_limit: 360m
 
   catalog-service:
-    image: kametud-catalog-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-catalog-service:${IMAGE_TAG:-latest}
     build:
       context: ./catalog-service
     depends_on:
-      catalog-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8083
-      DB_URL: jdbc:postgresql://catalog-db:5432/catalog_db
+      DB_URL: jdbc:postgresql://postgres:5432/catalog_db
       DB_USERNAME: ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
-    ports:
-      - "8083:8083"
-    networks:
-      - default
+    mem_limit: 360m
 
   request-service:
-    image: kametud-request-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-request-service:${IMAGE_TAG:-latest}
     build:
       context: ./requestservice
     depends_on:
-      request-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8082
-      DB_URL: jdbc:postgresql://request-db:5432/request_db
+      DB_URL: jdbc:postgresql://postgres:5432/request_db
       DB_USERNAME: ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${REQUEST_DB_PASSWORD:?Set REQUEST_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
@@ -164,21 +139,20 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8081
       BUSINESS_SERVICE_URL: http://business-service:8084
       SUPPORT_SERVICE_URL: http://support-service:8086
-    ports:
-      - "8082:8082"
-    networks:
-      - default
+    mem_limit: 360m
 
   business-service:
-    image: kametud-business-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-business-service:${IMAGE_TAG:-latest}
     build:
       context: ./business-service
     depends_on:
-      business-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8084
-      DB_URL: jdbc:postgresql://business-db:5432/business_db
+      DB_URL: jdbc:postgresql://postgres:5432/business_db
       DB_USERNAME: ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
@@ -187,21 +161,20 @@ services:
       CATALOG_SERVICE_URL: http://catalog-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
-    ports:
-      - "8084:8084"
-    networks:
-      - default
+    mem_limit: 360m
 
   payment-service:
-    image: kametud-payment-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-payment-service:${IMAGE_TAG:-latest}
     build:
       context: ./payment-service
     depends_on:
-      payment-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8085
-      DB_URL: jdbc:postgresql://payment-db:5432/payment_db
+      DB_URL: jdbc:postgresql://postgres:5432/payment_db
       DB_USERNAME: ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
@@ -210,21 +183,20 @@ services:
       BUSINESS_SERVICE_URL: http://business-service:8084
       IDENTITY_SERVICE_URL: http://identity-service:8081
       SUPPORT_SERVICE_URL: http://support-service:8086
-    ports:
-      - "8085:8085"
-    networks:
-      - default
+    mem_limit: 360m
 
   support-service:
-    image: kametud-support-service:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-support-service:${IMAGE_TAG:-latest}
     build:
       context: ./support-service
     depends_on:
-      support-db:
+      postgres:
         condition: service_healthy
     environment:
+      <<: *java-defaults
       SERVER_PORT: 8086
-      DB_URL: jdbc:postgresql://support-db:5432/support_db
+      DB_URL: jdbc:postgresql://postgres:5432/support_db
       DB_USERNAME: ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod}
       DB_PASSWORD: ${SUPPORT_DB_PASSWORD:?Set SUPPORT_DB_PASSWORD in .env.prod}
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
@@ -232,31 +204,24 @@ services:
       BUSINESS_SERVICE_URL: http://business-service:8084
       IDENTITY_SERVICE_URL: http://identity-service:8081
       STORAGE_LOCATION: ${STORAGE_LOCATION:-/app/storage}
-    ports:
-      - "8086:8086"
     volumes:
       - support_storage:/app/storage
-    networks:
-      - default
+    mem_limit: 360m
 
   api-gateway:
-    image: kametud-api-gateway:latest
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-api-gateway:${IMAGE_TAG:-latest}
     build:
       context: ./api-gateway
     depends_on:
-      identity-service:
-        condition: service_started
-      request-service:
-        condition: service_started
-      catalog-service:
-        condition: service_started
-      business-service:
-        condition: service_started
-      payment-service:
-        condition: service_started
-      support-service:
-        condition: service_started
+      - identity-service
+      - request-service
+      - catalog-service
+      - business-service
+      - payment-service
+      - support-service
     environment:
+      <<: *java-defaults
       GATEWAY_PORT: 8080
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
@@ -267,17 +232,78 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
       SUPPORT_SERVICE_WS_URL: ws://support-service:8086
-      FRONTEND_URL: https://kametud.com
-      FRONTEND_ALT_URL: https://www.kametud.com
-      FRONTEND_LAN_PATTERN: https://kametud.com
+      # Le frontend est servi par le meme nginx que l'API : les appels partent
+      # donc en meme origine et ne declenchent aucun preflight CORS. Ces valeurs
+      # ne servent plus que si un client externe appelle l'API directement.
+      FRONTEND_URL: ${PUBLIC_SITE_URL:?Set PUBLIC_SITE_URL in .env.prod}
+      FRONTEND_ALT_URL: ${PUBLIC_SITE_ALT_URL:-${PUBLIC_SITE_URL}}
+      FRONTEND_LAN_PATTERN: ${PUBLIC_SITE_URL}
+    healthcheck:
+      # api-gateway est le seul service a embarquer spring-boot-starter-actuator.
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     ports:
-      - "8080:8080"
-    networks:
-      - default
+      # Publie uniquement sur la boucle locale, pour diagnostiquer en SSH
+      # (curl http://127.0.0.1:8080/actuator/health). Inaccessible depuis
+      # l'exterieur : ce n'est pas un contournement du reverse proxy.
+      - "127.0.0.1:8080:8080"
+    mem_limit: 320m
+
+  frontend:
+    <<: *service-defaults
+    image: ghcr.io/luctc-47/kametud-frontend:${IMAGE_TAG:-latest}
+    build:
+      # Le build React vit a la racine du depot, un niveau au-dessus.
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      - api-gateway
+    ports:
+      # SEUL port ouvert de la stack, et uniquement sur 127.0.0.1.
+      # Le reverse proxy deja present sur le VPS (ports 80/443, gere par
+      # l'autre application) doit pointer son vhost ici. Voir DEPLOY.md.
+      - "127.0.0.1:${PUBLIC_HTTP_PORT:-8090}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 64m
+
+  cloudflared:
+    <<: *service-defaults
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
+    depends_on:
+      - frontend
+    # Les ports 80 et 443 du VPS appartiennent a une application tierce que nous
+    # ne pouvons pas reconfigurer. Le tunnel ouvre une connexion *sortante* vers
+    # Cloudflare, qui sert ensuite le site en HTTPS : aucun port entrant n'est
+    # necessaire, et aucun droit root non plus.
+    #
+    # Le routage est defini cote Cloudflare (Zero Trust > Networks > Tunnels) :
+    # le hostname public doit pointer vers http://frontend:8080, joignable par
+    # ce conteneur via le reseau interne. Voir DEPLOY.md.
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env.prod}
+      # Sans metriques, cloudflared n'expose aucune sonde locale.
+      TUNNEL_METRICS: 0.0.0.0:2000
+    healthcheck:
+      test: ["CMD", "cloudflared", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 96m
 
 networks:
   default:
-    name: backend-kametude_default
+    name: kametud_prod
 
 volumes:
+  postgres_data:
   support_storage:

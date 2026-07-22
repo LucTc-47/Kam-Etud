@@ -1,0 +1,33 @@
+# Le projet se developpe sous Windows et se deploie sous Linux.
+#
+# Un script shell committe avec des fins de ligne CRLF echoue dans un conteneur
+# avec « $'\r': command not found ». C'est particulierement critique pour
+# Backend-Kametude/postgres/init-databases.sh : il ne s'execute qu'une seule
+# fois, a la creation du volume, et son echec laisse la production sans bases.
+* text=auto
+
+*.sh      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+Dockerfile text eol=lf
+*.conf    text eol=lf
+
+# Un .env en CRLF est particulierement sournois : docker compose garde le \r
+# dans la valeur. Le mot de passe et le JWT_SECRET seraient alors silencieusement
+# faux, sans aucun message d'erreur exploitable.
+.env*     text eol=lf
+*.env     text eol=lf
+
+# Docker tolere mal les CRLF dans les motifs d'exclusion.
+.dockerignore text eol=lf
+
+# Les scripts de demarrage Windows doivent au contraire garder des CRLF.
+*.ps1     text eol=crlf
+*.cmd     text eol=crlf
+
+# Fichiers binaires : aucune conversion.
+*.png     binary
+*.ico     binary
+*.jpg     binary
+*.mp4     binary
+*.pdf     binary
