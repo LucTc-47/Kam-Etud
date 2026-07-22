@@ -34,9 +34,23 @@ PAYMENT_PROVIDER=mock
 
 `PAYMENT_PROVIDER=mock` est recommandé en local pour tester le parcours de paiement sans argent réel. Pour MeSomb réel, utiliser `PAYMENT_PROVIDER=mesomb` et fournir les clés MeSomb dans `Backend-Kametude/.env` sans jamais les committer.
 
+`PAYMENT_MODE` est un alias équivalent, utilisé par les fichiers Docker Compose : le service résout `payment.provider=${PAYMENT_PROVIDER:${PAYMENT_MODE:mesomb}}`, donc `PAYMENT_PROVIDER` l'emporte s'il est défini.
+
 ### Lancer toute la plateforme
 
-Depuis la racine du dépôt :
+Deux parcours sont disponibles depuis la racine du dépôt.
+
+**Tout-Docker — recommandé pour une démo.** Les sept microservices ont un `Dockerfile` et sont construits par Docker Compose : aucun Java ni Maven n'est requis sur la machine.
+
+```powershell
+.\start-demo.ps1 -SeedDemo
+```
+
+Le script construit et démarre la pile complète, attend que les bases soient `healthy` puis que les sept applications Spring Boot aient fini leur démarrage, vérifie `http://localhost:8080/actuator/health`, recrée les comptes de démonstration, valide le login via la Gateway et exécute le smoke test bout-en-bout. Les paiements y sont en mode mock. Le frontend se lance ensuite avec `.\start-frontend.ps1`.
+
+Arrêt : `cd Backend-Kametude ; docker compose down`.
+
+**Processus locaux — recommandé pour développer.** Seules les bases restent dans Docker, les applications tournent via Maven.
 
 ```powershell
 .\start-local.ps1
@@ -115,6 +129,18 @@ ou directement :
 ```powershell
 npm run dev -- --host 0.0.0.0
 ```
+
+### Déploiement production (VPS)
+
+`Backend-Kametude/docker-compose.prod.yml` déploie la même pile sans exposer les bases ni RabbitMQ, persiste le stockage de Support dans un volume Docker et fixe les origines CORS sur `https://kametud.com`. Tous les secrets sont obligatoires : le fichier Compose utilise la syntaxe `${VAR:?}` et refuse de démarrer si une variable manque.
+
+```powershell
+Copy-Item Backend-Kametude\.env.prod.example Backend-Kametude\.env.prod
+cd Backend-Kametude
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+`Backend-Kametude/.env.prod` est ignoré par Git et ne doit jamais être committé. Les valeurs par défaut du `docker-compose.yml` de développement (`password`, `change-this-internal-token`, `JWT_SECRET` de test) sont réservées au poste local.
 
 ## Signalement d'abus depuis un litige — 6 juillet 2026
 

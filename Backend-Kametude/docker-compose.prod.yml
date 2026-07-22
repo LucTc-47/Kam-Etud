@@ -1,14 +1,16 @@
+# Production VPS compose file.
+# Load secrets with:
+# docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
+
 services:
   identity-db:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: identity_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${IDENTITY_DB_PORT:-5431}:5432"
+      POSTGRES_USER: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d identity_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod} -d identity_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,12 +22,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: catalog_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${CATALOG_DB_PORT:-5632}:5432"
+      POSTGRES_USER: ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d catalog_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod} -d catalog_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -37,12 +37,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: request_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${REQUEST_DB_PORT:-5633}:5432"
+      POSTGRES_USER: ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${REQUEST_DB_PASSWORD:?Set REQUEST_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d request_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod} -d request_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -54,12 +52,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: business_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${BUSINESS_DB_PORT:-5634}:5432"
+      POSTGRES_USER: ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d business_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod} -d business_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -71,12 +67,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: payment_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${PAYMENT_DB_PORT:-5635}:5432"
+      POSTGRES_USER: ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d payment_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod} -d payment_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -88,12 +82,10 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: support_db
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "${SUPPORT_DB_PORT:-5636}:5432"
+      POSTGRES_USER: ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod}
+      POSTGRES_PASSWORD: ${SUPPORT_DB_PASSWORD:?Set SUPPORT_DB_PASSWORD in .env.prod}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d support_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod} -d support_db"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -103,9 +95,9 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?Set RABBITMQ_DEFAULT_USER in .env.prod}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?Set RABBITMQ_DEFAULT_PASS in .env.prod}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -125,10 +117,10 @@ services:
     environment:
       SERVER_PORT: 8081
       DB_URL: jdbc:postgresql://identity-db:5432/identity_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      DB_USERNAME: ${IDENTITY_DB_USERNAME:?Set IDENTITY_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD:?Set IDENTITY_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       CATALOG_SERVICE_URL: http://catalog-service:8083
     ports:
       - "8081:8081"
@@ -145,10 +137,10 @@ services:
     environment:
       SERVER_PORT: 8083
       DB_URL: jdbc:postgresql://catalog-db:5432/catalog_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      DB_USERNAME: ${CATALOG_DB_USERNAME:?Set CATALOG_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
     ports:
       - "8083:8083"
@@ -165,10 +157,10 @@ services:
     environment:
       SERVER_PORT: 8082
       DB_URL: jdbc:postgresql://request-db:5432/request_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      DB_USERNAME: ${REQUEST_DB_USERNAME:?Set REQUEST_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${REQUEST_DB_PASSWORD:?Set REQUEST_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
       BUSINESS_SERVICE_URL: http://business-service:8084
       SUPPORT_SERVICE_URL: http://support-service:8086
@@ -187,10 +179,10 @@ services:
     environment:
       SERVER_PORT: 8084
       DB_URL: jdbc:postgresql://business-db:5432/business_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      DB_USERNAME: ${BUSINESS_DB_USERNAME:?Set BUSINESS_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${BUSINESS_DB_PASSWORD:?Set BUSINESS_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
       CATALOG_SERVICE_URL: http://catalog-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8085
@@ -210,11 +202,11 @@ services:
     environment:
       SERVER_PORT: 8085
       DB_URL: jdbc:postgresql://payment-db:5432/payment_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
-      PAYMENT_MODE: mock
+      DB_USERNAME: ${PAYMENT_DB_USERNAME:?Set PAYMENT_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${PAYMENT_DB_PASSWORD:?Set PAYMENT_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
+      PAYMENT_MODE: ${PAYMENT_MODE:-mock}
       BUSINESS_SERVICE_URL: http://business-service:8084
       IDENTITY_SERVICE_URL: http://identity-service:8081
       SUPPORT_SERVICE_URL: http://support-service:8086
@@ -233,15 +225,17 @@ services:
     environment:
       SERVER_PORT: 8086
       DB_URL: jdbc:postgresql://support-db:5432/support_db
-      DB_USERNAME: user
-      DB_PASSWORD: password
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      DB_USERNAME: ${SUPPORT_DB_USERNAME:?Set SUPPORT_DB_USERNAME in .env.prod}
+      DB_PASSWORD: ${SUPPORT_DB_PASSWORD:?Set SUPPORT_DB_PASSWORD in .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       BUSINESS_SERVICE_URL: http://business-service:8084
       IDENTITY_SERVICE_URL: http://identity-service:8081
-      STORAGE_LOCATION: /app/storage
+      STORAGE_LOCATION: ${STORAGE_LOCATION:-/app/storage}
     ports:
       - "8086:8086"
+    volumes:
+      - support_storage:/app/storage
     networks:
       - default
 
@@ -264,8 +258,8 @@ services:
         condition: service_started
     environment:
       GATEWAY_PORT: 8080
-      JWT_SECRET: dGVtcG9yYXJ5LXRlc3Qtand0LXNlY3JldC1ub3QtZm9yLXByb2R1Y3Rpb24=
-      INTERNAL_SERVICE_TOKEN: change-this-internal-token
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
       REQUEST_SERVICE_URL: http://request-service:8082
       CATALOG_SERVICE_URL: http://catalog-service:8083
@@ -273,9 +267,9 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
       SUPPORT_SERVICE_WS_URL: ws://support-service:8086
-      FRONTEND_URL: http://localhost:5173
-      FRONTEND_ALT_URL: http://127.0.0.1:5173
-      FRONTEND_LAN_PATTERN: http://*:5173
+      FRONTEND_URL: https://kametud.com
+      FRONTEND_ALT_URL: https://www.kametud.com
+      FRONTEND_LAN_PATTERN: https://kametud.com
     ports:
       - "8080:8080"
     networks:
@@ -284,3 +278,6 @@ services:
 networks:
   default:
     name: backend-kametude_default
+
+volumes:
+  support_storage:

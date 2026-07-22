@@ -12,6 +12,7 @@ lerna-debug.log*
 .env
 .env.local
 .env.*.local
+Backend-Kametude/.env.prod
 
 node_modules
 dist

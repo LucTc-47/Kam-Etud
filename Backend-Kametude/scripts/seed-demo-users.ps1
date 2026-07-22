@@ -3,7 +3,7 @@ param(
     [string]$ComposeFile,
     [string]$IdentityDbService = "identity-db",
     [string]$DbName = "identity_db",
-    [string]$DbUser = "user",
+    [string]$PgUser = $(if ($env:IDENTITY_DB_USERNAME) { $env:IDENTITY_DB_USERNAME } else { "user" }),
     [string]$PasswordLabel = "123456789!",
     [string]$PasswordHash = '$2a$10$cpbx6PcDGMXWKfzizdcf.OHObQ1WvE9oq23xUTo1JwHMagC02/Z6q'
 )
@@ -39,7 +39,7 @@ function Invoke-IdentitySql {
     param([string]$Sql)
 
     & docker compose -f $ComposeFile exec -T $IdentityDbService `
-        psql -U $DbUser -d $DbName -v ON_ERROR_STOP=1 -q -c $Sql
+        psql -U $PgUser -d $DbName -v ON_ERROR_STOP=1 -q -c $Sql
 
     if ($LASTEXITCODE -ne 0) {
         throw "Execution SQL impossible. Verifiez que Docker Desktop est lance et que '$IdentityDbService' est demarre."
@@ -100,7 +100,7 @@ SELECT
     now(),
     now()
 FROM seed_users s
-JOIN users u ON u.email = s.email
+JOIN upsert_users u ON u.email = s.email
 ON CONFLICT (user_id) DO UPDATE
     SET first_name = EXCLUDED.first_name,
         last_name = EXCLUDED.last_name,

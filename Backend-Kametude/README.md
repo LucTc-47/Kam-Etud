@@ -51,7 +51,7 @@ Le script est idempotent : il peut être relancé sans créer de doublons. Il re
 
 ### Ports PostgreSQL locaux
 
-Le `docker-compose.yml` expose par défaut `5431` à `5436`. Le script racine `start-local.ps1` utilise par défaut `5632` à `5636` pour éviter les ports Windows souvent réservés, puis transmet les bons `DB_URL` aux services.
+Le `docker-compose.yml` expose par défaut `5431` pour Identity puis `5632` à `5636` pour les cinq autres bases, afin d'éviter la plage souvent réservée par Windows et une installation PostgreSQL locale occupant déjà `5432`. Le script racine `start-local.ps1` utilise les mêmes valeurs et transmet les bons `DB_URL` aux services. Chaque port reste surchargeable par `IDENTITY_DB_PORT`, `CATALOG_DB_PORT`, `REQUEST_DB_PORT`, `BUSINESS_DB_PORT`, `PAYMENT_DB_PORT` et `SUPPORT_DB_PORT`. Les conteneurs continuent d'écouter sur `5432` en interne.
 
 ## Synchronisation du parcours mission — 6 juillet 2026
 
@@ -80,9 +80,41 @@ Deux secrets doivent être cohérents entre processus :
 
 Les ports internes ne doivent pas être appelés par le navigateur. Les communications synchrones utilisent Spring REST Client et des URLs configurables jusqu'à l'ajout éventuel d'un serveur Eureka.
 
+## Démarrage tout-Docker (démo)
+
+Les sept microservices ont désormais un `Dockerfile` multi-stage et sont déclarés dans `docker-compose.yml`. Depuis la racine du dépôt, une seule commande construit et démarre la pile complète :
+
+```powershell
+.\start-demo.ps1 -SeedDemo
+```
+
+Le script vérifie Docker, lance `docker compose up -d --build`, attend que les bases soient `healthy` puis que les sept applications Spring Boot aient terminé leur démarrage, contrôle `http://localhost:8080/actuator/health`, recrée les comptes de démonstration avec `-SeedDemo`, valide le login via la Gateway et exécute enfin le smoke test bout-en-bout. Le délai d'attente est réglable avec `-TimeoutSeconds`.
+
+Dans ce mode, `payment-service` tourne avec `PAYMENT_MODE=mock` : aucune transaction réelle n'est effectuée. Le frontend reste à lancer séparément avec `.\start-frontend.ps1` sur `http://localhost:5173`.
+
+Arrêt de la pile :
+
+```powershell
+cd Backend-Kametude
+docker compose down
+```
+
+Les valeurs par défaut de ce fichier Compose (`password`, `change-this-internal-token`, `JWT_SECRET` de test) sont réservées au développement local.
+
+## Déploiement production (VPS)
+
+`docker-compose.prod.yml` reprend la même topologie mais impose tous les secrets via la syntaxe `${VAR:?}` : le démarrage échoue explicitement si une variable manque. Les bases et RabbitMQ n'exposent aucun port hôte, le stockage de Support est persisté dans le volume `support_storage` et les origines CORS pointent sur `https://kametud.com`.
+
+```powershell
+Copy-Item .env.prod.example .env.prod   # puis renseigner chaque valeur
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+`Backend-Kametude/.env.prod` est ignoré par `.gitignore` et ne doit jamais être committé. Toutes les variables attendues sont listées dans `.env.prod.example` : `JWT_SECRET`, `INTERNAL_SERVICE_TOKEN`, les identifiants des six bases, ceux de RabbitMQ, `PAYMENT_MODE` et `STORAGE_LOCATION`.
+
 ## Démarrage local complet
 
-Le lanceur recommandé se trouve à la racine du dépôt :
+Ce parcours reste utile pour développer sur un seul microservice sans reconstruire d'image. Le lanceur recommandé se trouve à la racine du dépôt :
 
 ```powershell
 .\start-local.ps1
@@ -93,7 +125,7 @@ Il automatise les étapes ci-dessous, vérifie Java 21, Node.js et Docker, conse
 1. Utiliser `.env.example` comme modèle, puis charger au minimum `JWT_SECRET`, `INTERNAL_SERVICE_TOKEN` et les trois clés `MESOMB_*` dans les configurations d'exécution de l'IDE ou dans chaque terminal concerné. Spring ne charge pas automatiquement un fichier `.env` brut.
 2. Démarrer PostgreSQL : `docker compose up -d identity-db catalog-db request-db business-db payment-db support-db`.
 
-Si Windows réserve les ports `5433–5436`, surcharger `REQUEST_DB_PORT`, `BUSINESS_DB_PORT`, `PAYMENT_DB_PORT` et `SUPPORT_DB_PORT` (par exemple avec `5633–5636`), puis fournir les mêmes ports dans les `DB_URL` des quatre services. Si une installation PostgreSQL locale occupe déjà `5432`, utiliser aussi `CATALOG_DB_PORT=5632` et adapter `DB_URL` de Catalog. Les conteneurs continuent d'écouter sur `5432` en interne.
+Les ports hôtes par défaut sont `5431` pour Identity et `5632`–`5636` pour Catalog, Request, Business, Payment et Support. En cas de conflit résiduel, surcharger `IDENTITY_DB_PORT`, `CATALOG_DB_PORT`, `REQUEST_DB_PORT`, `BUSINESS_DB_PORT`, `PAYMENT_DB_PORT` ou `SUPPORT_DB_PORT`, puis reporter les mêmes ports dans les `DB_URL` des services concernés. Les conteneurs continuent d'écouter sur `5432` en interne.
 3. Depuis sept terminaux ouverts dans `Backend-Kametude`, lancer :
 
 ```powershell
@@ -119,7 +151,9 @@ Lorsque les services sont démarrés et que les quatre comptes de démonstration
 .\scripts\local-smoke-test.ps1
 ```
 
-Le script vérifie les rôles, le KYC, les protections Gateway, le catalogue, les commandes, le stockage privé, le chat, les notifications, les demandes/propositions, les avis et les litiges. Avec les clés MeSomb factices, il attend une erreur fournisseur contrôlée puis simule uniquement la confirmation du séquestre via la route interne locale ; aucun paiement réel n'est effectué.
+Le script vérifie les rôles, le KYC, les protections Gateway, le catalogue, les commandes, le stockage privé, le chat, les notifications, les demandes/propositions, les avis et les litiges.
+
+Il suppose que `payment-service` tourne en mode mock (`PAYMENT_MODE=mock` ou `PAYMENT_PROVIDER=mock`) : il attend un paiement accepté avec le statut `HELD` et une référence `MOCK-COLLECT-*`, puis simule la confirmation du séquestre via la route interne locale. Aucun paiement réel n'est effectué. Avec `PAYMENT_PROVIDER=mesomb`, cette assertion échoue volontairement.
 
 Cette architecture est optimisée pour notre équipe de 12 étudiants, répartis en binômes stratégiques.
 
@@ -148,11 +182,13 @@ Cette architecture est optimisée pour notre équipe de 12 étudiants, répartis
 | --- | ---: | --- |
 | API Gateway | 8080 | — |
 | Identity Service | 8081 | `identity_db` — 5431 |
-| Request Service | 8082 | `request_db` — 5433 |
-| Catalog Service | 8083 | `catalog_db` — 5432 |
-| Business Service | 8084 | `business_db` — 5434 |
-| Payment Service | 8085 | `payment_db` — 5435 |
-| Support Service | 8086 | `support_db` — 5436 |
+| Request Service | 8082 | `request_db` — 5633 |
+| Catalog Service | 8083 | `catalog_db` — 5632 |
+| Business Service | 8084 | `business_db` — 5634 |
+| Payment Service | 8085 | `payment_db` — 5635 |
+| Support Service | 8086 | `support_db` — 5636 |
+
+Ces ports sont ceux vus depuis l'hôte. À l'intérieur du réseau Docker, chaque base écoute sur `5432` et les services se joignent par nom (`jdbc:postgresql://identity-db:5432/identity_db`).
 
 Le frontend doit appeler uniquement la Gateway sur `http://localhost:8080`. Les ports internes restent configurables par variables d'environnement.
 

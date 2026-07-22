@@ -1,7 +1,7 @@
 spring.application.name=payment-service
 server.port=8085
 
-spring.datasource.url=jdbc:postgresql://localhost:5435/payment_db
+spring.datasource.url=jdbc:postgresql://localhost:5635/payment_db
 spring.datasource.username=user
 spring.datasource.password=password
 spring.datasource.driver-class-name=org.postgresql.Driver
@@ -11,7 +11,7 @@ spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
 spring.jpa.open-in-view=false
 
-payment.provider=${PAYMENT_PROVIDER:mesomb}
+payment.provider=${PAYMENT_PROVIDER:${PAYMENT_MODE:mesomb}}
 
 mesomb.base-url=https://business.mesomb.com/fr/api/v1.1
 mesomb.application-key=${MESOMB_APPLICATION_KEY}

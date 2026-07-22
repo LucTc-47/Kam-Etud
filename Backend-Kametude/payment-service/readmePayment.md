@@ -128,7 +128,7 @@ com.kametude.payment/
 spring.application.name=payment-service
 server.port=8085
 
-spring.datasource.url=jdbc:postgresql://localhost:5435/payment_db
+spring.datasource.url=jdbc:postgresql://localhost:5635/payment_db
 spring.datasource.username=user
 spring.datasource.password=password
 spring.datasource.driver-class-name=org.postgresql.Driver
@@ -167,12 +167,12 @@ Vérifier que le conteneur tourne :
 ```bash
 docker ps
 ```
-Vous devez voir `payment-db` avec le port `0.0.0.0:5435->5432/tcp`.
+Vous devez voir `payment-db` avec le port `0.0.0.0:5635->5432/tcp`.
 
 ### Étape 2 — Créer la table `payment_transactions`
 
 ```bash
-psql -h localhost -p 5435 -U user -d payment_db
+psql -h localhost -p 5635 -U user -d payment_db
 ```
 Mot de passe : `password`
 
