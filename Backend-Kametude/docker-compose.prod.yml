@@ -158,7 +158,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.prod}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Set INTERNAL_SERVICE_TOKEN in .env.prod}
       IDENTITY_SERVICE_URL: http://identity-service:8081
-    mem_limit: 256m
+    # Mesure en production : 228 Mo, soit 89 % d'un plafond a 256 Mo. Trop pres
+    # pour absorber un pic de ramasse-miettes sans se faire tuer.
+    mem_limit: 320m
 
   request-service:
     <<: *service-defaults
@@ -201,7 +203,8 @@ services:
       CATALOG_SERVICE_URL: http://catalog-service:8083
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
-    mem_limit: 256m
+    # Mesure en production : 210 Mo, soit 82 % d'un plafond a 256 Mo.
+    mem_limit: 320m
 
   payment-service:
     <<: *service-defaults
@@ -272,12 +275,18 @@ services:
       PAYMENT_SERVICE_URL: http://payment-service:8085
       SUPPORT_SERVICE_URL: http://support-service:8086
       SUPPORT_SERVICE_WS_URL: ws://support-service:8086
-      # Le frontend est servi par le meme nginx que l'API : les appels partent
-      # donc en meme origine et ne declenchent aucun preflight CORS. Ces valeurs
-      # ne servent plus que si un client externe appelle l'API directement.
+      # Origines CORS autorisees par la Gateway. Meme si le frontend et l'API
+      # partagent la meme origine en fonctionnement normal, le navigateur joint
+      # un en-tete Origin aux requetes POST : la Gateway la refuse d'un 403 si
+      # elle n'est pas listee ici.
       FRONTEND_URL: ${PUBLIC_SITE_URL:?Set PUBLIC_SITE_URL in .env.prod}
       FRONTEND_ALT_URL: ${PUBLIC_SITE_ALT_URL:-${PUBLIC_SITE_URL}}
-      FRONTEND_LAN_PATTERN: ${PUBLIC_SITE_URL}
+      # Le 3e emplacement doublait PUBLIC_SITE_URL, donc ne servait a rien.
+      # Reaffecte au diagnostic : le motif http://*:8090 couvre a la fois le
+      # tunnel SSH (http://localhost:8090) et l'exposition temporaire par IP
+      # (http://51.255.164.235:8090). Restreint au seul port 8090, il n'ouvre
+      # pas le CORS a des origines arbitraires.
+      FRONTEND_LAN_PATTERN: ${DIAG_ORIGIN:-http://*:8090}
     healthcheck:
       # api-gateway est le seul service a embarquer spring-boot-starter-actuator.
       test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/actuator/health | grep -q UP"]
@@ -308,10 +317,12 @@ services:
       - default
       - traefik
     ports:
-      # Publie sur la boucle locale uniquement, pour diagnostiquer en SSH.
-      # Le trafic public ne passe pas par la : Traefik joint le conteneur
-      # directement par le reseau Docker.
-      - "127.0.0.1:${PUBLIC_HTTP_PORT:-8090}:8080"
+      # Par defaut, publie sur la boucle locale uniquement (diagnostic SSH).
+      # Le trafic public normal ne passe pas par la : Traefik joint le
+      # conteneur par le reseau Docker.
+      # Exposition temporaire par IP : mettre PUBLIC_BIND=0.0.0.0 dans .env.prod.
+      # Resecuriser = retirer cette variable et recreer le conteneur.
+      - "${PUBLIC_BIND:-127.0.0.1}:${PUBLIC_HTTP_PORT:-8090}:8080"
     labels:
       # Le Traefik deja installe sur la machine decouvre ces labels tout seul.
       # Sa configuration reste intacte : on ne touche ni a son traefik.yml,
@@ -342,7 +353,11 @@ services:
       traefik.http.routers.kametud.tls.certresolver: letsencrypt
       traefik.http.services.kametud.loadbalancer.server.port: "8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/healthz || exit 1"]
+      # 127.0.0.1 et non « localhost » : dans ce conteneur, localhost ne resout
+      # que vers ::1 alors que nginx ecoute en IPv4 (listen 8080). La sonde
+      # echouait sur « Connection refused » pendant que le service repondait
+      # parfaitement, marquant le conteneur unhealthy a tort.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

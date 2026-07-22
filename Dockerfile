@@ -41,5 +41,8 @@ COPY --from=build /app/dist /usr/share/nginx/html
 
 EXPOSE 8080
 
+# 127.0.0.1 et non « localhost » : dans ce conteneur, localhost ne resout que
+# vers ::1 alors que nginx ecoute en IPv4. La sonde echouerait sur
+# « Connection refused » alors que le service repond normalement.
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://localhost:8080/healthz || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1

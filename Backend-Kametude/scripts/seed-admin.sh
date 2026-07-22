@@ -75,15 +75,29 @@ seed_account() {
 
   # 1. Inscription par l'API : hachage BCrypt et creation du profil lie.
   #    Le role demande est volontairement CLIENT, le seul que l'API accepte.
-  local code
-  code=$(post_json "$API_URL/api/auth/register" \
-    "{\"email\":\"$email\",\"password\":\"$SEED_PASSWORD\",\"role\":\"CLIENT\",\"firstName\":\"$first_name\",\"lastName\":\"$last_name\"}")
+  #
+  #    Les services tournent en SPRING_MAIN_LAZY_INITIALIZATION : leurs beans
+  #    ne sont instancies qu'au premier appel. La Gateway peut donc etre saine
+  #    alors que l'identity-service initialise encore JPA, et la premiere
+  #    requete repond alors 500. On reessaie plutot que d'abandonner.
+  local code payload attempt
+  payload="{\"email\":\"$email\",\"password\":\"$SEED_PASSWORD\",\"role\":\"CLIENT\",\"firstName\":\"$first_name\",\"lastName\":\"$last_name\"}"
 
-  case "$code" in
-    201) echo "  compte cree" ;;
-    409) echo "  compte deja present, promotion quand meme" ;;
-    *)   echo "  echec de l'inscription (HTTP ${code:-inconnu})" >&2; return 1 ;;
-  esac
+  for attempt in 1 2 3 4 5 6; do
+    code=$(post_json "$API_URL/api/auth/register" "$payload")
+    case "$code" in
+      201) echo "  compte cree"; break ;;
+      409) echo "  compte deja present, promotion quand meme"; break ;;
+      *)
+        if [ "$attempt" = "6" ]; then
+          echo "  echec de l'inscription apres 6 tentatives (HTTP ${code:-inconnu})" >&2
+          return 1
+        fi
+        echo "  HTTP ${code:-inconnu}, service pas encore pret, nouvelle tentative dans 10 s ($attempt/6)"
+        sleep 10
+        ;;
+    esac
+  done
 
   # 2. Promotion. Les deux tables doivent etre mises a jour : users porte
   #    l'enum en majuscules et pilote Spring Security, profiles porte la chaine
