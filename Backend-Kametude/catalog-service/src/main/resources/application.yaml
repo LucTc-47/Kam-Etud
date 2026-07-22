@@ -8,7 +8,9 @@ spring:
     # url: jdbc:postgresql://localhost:5432/catalog_db
     # username: postgres
     # password: 809145
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/catalog_db}
+    # Repli utilise seulement en lancement Maven/IDE nu : catalog-db est expose
+    # sur 5632 par docker-compose.yml. start-local.ps1 et Compose passent DB_URL.
+    url: ${DB_URL:jdbc:postgresql://localhost:5632/catalog_db}
     username: ${DB_USERNAME:user}
     password: ${DB_PASSWORD:password}
     driver-class-name: org.postgresql.Driver

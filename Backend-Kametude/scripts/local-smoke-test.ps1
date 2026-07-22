@@ -157,11 +157,15 @@ $deliveryOrder = Invoke-Api POST "/api/orders" $clientToken @{
 }
 Assert-That ($deliveryOrder.status -eq "pending" -and $deliveryOrder.budget -eq 20000) "Commande basee sur le prix Catalog"
 
-$paymentStatus = Get-HttpStatus POST "/api/payments/initiate" $clientToken @{
+$payment = Invoke-Api POST "/api/payments/initiate" $clientToken @{
     orderId = $deliveryOrder.id
     phone = "+237670000004"
 }
-Assert-That ($paymentStatus -ge 400) "Erreur MeSomb controlee avec les cles locales factices"
+Assert-That (
+    $payment.status -eq "HELD" -and
+    $null -ne $payment.transactionId -and
+    $payment.externalReference -like "MOCK-COLLECT-*"
+) "Paiement mock accepte et place sous sequestre"
 
 $acceptedOrder = Confirm-PaymentHeld $deliveryOrder.id
 Assert-That ($acceptedOrder.status -eq "accepted") "Simulation locale du sequestre"

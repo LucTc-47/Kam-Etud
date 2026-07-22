@@ -29,7 +29,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/catalog_db
+    url: jdbc:postgresql://localhost:5632/catalog_db
     username: postgres
     password: 809145
     driver-class-name: org.postgresql.Driver

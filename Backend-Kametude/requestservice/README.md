@@ -37,7 +37,7 @@ de la plateforme Kam'Etud.
 
 - **Équipe** : Melista (Chef de groupe) + Prisca (Binôme 4)
 - **Port** : 8082
-- **Base de données** : request_db (PostgreSQL, port 5433)
+- **Base de données** : request_db (PostgreSQL, port hôte 5633, `request-db:5432` en Docker)
 
 ## Stack technique
 - Java 21
@@ -75,7 +75,7 @@ mvn spring-boot:run
 
 - Ancien port `8085` commenté : il entrait en conflit avec le Payment Service.
 - Nouveau port : `8082`.
-- Connexion PostgreSQL déplacée vers `request_db` sur `localhost:5433`, conformément au `docker-compose.yml`.
+- Connexion PostgreSQL déplacée vers `request_db` sur `localhost:5633`, conformément au `docker-compose.yml`.
 - Ajout des variables `SERVER_PORT`, `DB_URL`, `DB_USERNAME` et `DB_PASSWORD`.
 
 Ces changements permettent à Request Service et Payment Service de démarrer en même temps et évitent que Request Service utilise la base du Catalog Service.

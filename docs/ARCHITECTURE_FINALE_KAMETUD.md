@@ -259,6 +259,8 @@ Configuration locale recommandee :
 PAYMENT_PROVIDER=mock
 ```
 
+Le service resout son fournisseur avec `payment.provider=${PAYMENT_PROVIDER:${PAYMENT_MODE:mesomb}}`. `PAYMENT_MODE` est l'alias utilise par les fichiers Docker Compose ; `PAYMENT_PROVIDER` reste prioritaire s'il est defini.
+
 Pour MeSomb reel :
 
 ```env
@@ -327,24 +329,26 @@ Chaque service persistant possede sa propre base PostgreSQL.
 | Service Docker | Base | Port hote par defaut |
 | --- | --- | ---: |
 | `identity-db` | `identity_db` | `5431` |
-| `catalog-db` | `catalog_db` | `5432` |
-| `request-db` | `request_db` | `5433` |
-| `business-db` | `business_db` | `5434` |
-| `payment-db` | `payment_db` | `5435` |
-| `support-db` | `support_db` | `5436` |
+| `catalog-db` | `catalog_db` | `5632` |
+| `request-db` | `request_db` | `5633` |
+| `business-db` | `business_db` | `5634` |
+| `payment-db` | `payment_db` | `5635` |
+| `support-db` | `support_db` | `5636` |
+
+Ces valeurs sont celles vues depuis l'hote. Elles evitent la plage souvent reservee par Windows et une installation PostgreSQL locale occupant deja `5432`. A l'interieur du reseau Docker, chaque base ecoute sur `5432` et les services se joignent par nom de conteneur (`jdbc:postgresql://identity-db:5432/identity_db`).
 
 Les ports peuvent etre surcharges :
 
 ```env
 IDENTITY_DB_PORT=5431
-CATALOG_DB_PORT=5432
-REQUEST_DB_PORT=5433
-BUSINESS_DB_PORT=5434
-PAYMENT_DB_PORT=5435
-SUPPORT_DB_PORT=5436
+CATALOG_DB_PORT=5632
+REQUEST_DB_PORT=5633
+BUSINESS_DB_PORT=5634
+PAYMENT_DB_PORT=5635
+SUPPORT_DB_PORT=5636
 ```
 
-Le lanceur local peut utiliser des ports alternatifs pour eviter les ports Windows reserves.
+Chaque base declare un `healthcheck` `pg_isready` ; les microservices attendent la condition `service_healthy` avant de demarrer.
 
 ---
 
@@ -369,6 +373,8 @@ INTERNAL_SERVICE_TOKEN=<jeton-inter-service>
 PAYMENT_PROVIDER=mock
 ```
 
+En production, ces secrets sont fournis par `Backend-Kametude/.env.prod`, non versionne et charge par `docker-compose.prod.yml`. Ce fichier Compose declare chaque variable sensible avec la syntaxe `${VAR:?}` : le demarrage echoue explicitement si l'une d'elles manque, ce qui interdit tout repli silencieux sur une valeur de developpement.
+
 ---
 
 ## 9. Demarrage local
@@ -381,7 +387,24 @@ Prerequis :
 - Docker Desktop avec Docker Compose v2 ;
 - PowerShell sur Windows.
 
-Demarrage complet recommande :
+Deux parcours coexistent.
+
+**Tout-Docker (recommande pour une demo).** Les sept microservices ont un `Dockerfile` multi-stage et sont declares dans `Backend-Kametude/docker-compose.yml` :
+
+```powershell
+.\start-demo.ps1 -SeedDemo
+```
+
+Le script construit et demarre la pile, attend les healthchecks des bases puis le demarrage Spring Boot des sept applications, verifie `http://localhost:8080/actuator/health`, recree les comptes de demonstration, valide le login via la Gateway et lance le smoke test bout-en-bout. `payment-service` y tourne avec `PAYMENT_MODE=mock`. Le frontend reste a demarrer separement avec `.\start-frontend.ps1`.
+
+Arret de la pile Docker :
+
+```powershell
+cd Backend-Kametude
+docker compose down
+```
+
+**Processus locaux (recommande pour developper sur un seul service).** Les bases restent dans Docker, les applications tournent via Maven :
 
 ```powershell
 .\start-local.ps1
@@ -432,6 +455,18 @@ Smoke test local :
 cd Backend-Kametude
 .\scripts\seed-demo-users.ps1
 .\scripts\local-smoke-test.ps1
+```
+
+Le smoke test suppose `payment-service` en mode mock : il attend un paiement accepte avec le statut `HELD` et une reference `MOCK-COLLECT-*`, puis simule la confirmation du sequestre par la route interne. Aucun paiement reel n'est effectue.
+
+### Deploiement sur le VPS
+
+`Backend-Kametude/docker-compose.prod.yml` reprend la meme topologie sans exposer les bases ni RabbitMQ, persiste le stockage de Support dans le volume `support_storage` et fixe les origines CORS sur `https://kametud.com`. Tous les secrets proviennent de `.env.prod`, cree a partir de `.env.prod.example` et jamais committe :
+
+```powershell
+Copy-Item Backend-Kametude\.env.prod.example Backend-Kametude\.env.prod
+cd Backend-Kametude
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
 ---

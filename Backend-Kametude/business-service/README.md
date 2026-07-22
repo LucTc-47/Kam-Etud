@@ -68,7 +68,7 @@ Pourquoi : le profil étudiant calculait déjà la note depuis les avis Business
 mais `/services` utilisait les champs `rating` et `reviewCount` non synchronisés
 du gig Catalog.
 
-Ce service est la source de vérité des commandes, livrables, révisions, avis et litiges. Il écoute par défaut sur le port `8084` et utilise la base `business_db` (`localhost:5434`).
+Ce service est la source de vérité des commandes, livrables, révisions, avis et litiges. Il écoute par défaut sur le port `8084` et utilise la base `business_db` (`localhost:5634` depuis l'hôte, `business-db:5432` depuis le réseau Docker).
 
 ## Statistiques, modération et auto-validation — 5 juillet 2026
 
@@ -88,7 +88,7 @@ Pourquoi : les statistiques avaient disparu, la modération n'agissait pas et l'
 | Variable | Valeur locale | Rôle |
 | --- | --- | --- |
 | `SERVER_PORT` | `8084` | Port HTTP |
-| `DB_URL` | `jdbc:postgresql://localhost:5434/business_db` | Base du service |
+| `DB_URL` | `jdbc:postgresql://localhost:5634/business_db` | Base du service (`jdbc:postgresql://business-db:5432/business_db` en Docker) |
 | `IDENTITY_SERVICE_URL` | `http://localhost:8081` | Profils fiables |
 | `CATALOG_SERVICE_URL` | `http://localhost:8083` | Gig et palier commandés |
 | `SUPPORT_SERVICE_URL` | `http://localhost:8086` | Notifications |

@@ -42,7 +42,7 @@ Les imports `HttpStatus` et `TransactionNotFoundException`, devenus inutiles apr
 
 Pourquoi : Identity masque correctement le téléphone dans `/api/profiles/{id}`; cet ancien appel faisait donc valider `null` comme numéro Mobile Money.
 
-Ce service gère la collecte MeSomb, le séquestre et la libération d'un paiement. Il écoute sur `8085` et utilise `payment_db` (`localhost:5435`). C'est le seul service autorisé à appeler MeSomb.
+Ce service gère la collecte MeSomb, le séquestre et la libération d'un paiement. Il écoute sur `8085` et utilise `payment_db` (`localhost:5635` depuis l'hôte, `payment-db:5432` depuis le réseau Docker). C'est le seul service autorisé à appeler MeSomb.
 
 ## Fiabilisation des paiements — 5 juillet 2026
 
@@ -63,12 +63,13 @@ Pourquoi : l'ancien appel fournisseur précédait l'écriture locale et pouvait 
 | Variable | Valeur locale | Rôle |
 | --- | --- | --- |
 | `SERVER_PORT` | `8085` | Port HTTP |
-| `DB_URL` | `jdbc:postgresql://localhost:5435/payment_db` | Base du service |
+| `DB_URL` | `jdbc:postgresql://localhost:5635/payment_db` | Base du service (`jdbc:postgresql://payment-db:5432/payment_db` en Docker) |
 | `BUSINESS_SERVICE_URL` | `http://localhost:8084` | Commande et montant fiables |
 | `IDENTITY_SERVICE_URL` | `http://localhost:8081` | Téléphone de retrait étudiant |
 | `SUPPORT_SERVICE_URL` | `http://localhost:8086` | Notifications |
 | `INTERNAL_SERVICE_TOKEN` | `change-this-internal-token` | Authentification inter-services |
-| `PAYMENT_PROVIDER` | `mock` en local, `mesomb` en réel | Choix du fournisseur de paiement |
+| `PAYMENT_MODE` | `mock` en soutenance/local | Alias simple pour choisir le mode de paiement si `PAYMENT_PROVIDER` est absent |
+| `PAYMENT_PROVIDER` | `mock` en local, `mesomb` en réel | Choix du fournisseur de paiement; prioritaire sur `PAYMENT_MODE` |
 | `MESOMB_BASE_URL` | `https://business.mesomb.com/fr/api/v1.1` | API MeSomb |
 | `MESOMB_APPLICATION_KEY` | — | Clé application MeSomb |
 | `MESOMB_ACCESS_KEY` | — | Clé d'accès MeSomb |

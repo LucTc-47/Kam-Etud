@@ -3,7 +3,9 @@ spring:
     name: support-service
   datasource:
     # url: jdbc:postgresql://localhost:5436/support_db
-    url: ${DB_URL:jdbc:postgresql://localhost:5436/support_db}
+    # Repli utilise seulement en lancement Maven/IDE nu : support-db est expose
+    # sur 5636 par docker-compose.yml. start-local.ps1 et Compose passent DB_URL.
+    url: ${DB_URL:jdbc:postgresql://localhost:5636/support_db}
     username: ${DB_USERNAME:user}
     password: ${DB_PASSWORD:password}
   jpa:

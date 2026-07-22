@@ -32,7 +32,7 @@ Endpoints principaux : `GET/POST /api/chat/orders/{orderId}/messages`, `/api/not
 
 ## État actuel après l'intégration frontend/backend — 4 juillet 2026
 
-Le service écoute sur `8086` et utilise `support_db` (`localhost:5436`). Il fournit maintenant au frontend les API sécurisées de chat, notifications et stockage. Les exemples historiques plus bas sont conservés pour montrer les contrats qui existaient avant la migration ; les routes courantes sont celles de cette section.
+Le service écoute sur `8086` et utilise `support_db` (`localhost:5636` depuis l'hôte, `support-db:5432` depuis le réseau Docker). Il fournit maintenant au frontend les API sécurisées de chat, notifications et stockage. Les exemples historiques plus bas sont conservés pour montrer les contrats qui existaient avant la migration ; les routes courantes sont celles de cette section.
 
 ### Contrat courant
 
@@ -70,7 +70,7 @@ Le support-service gère 3 fonctionnalités indépendantes :
 - Le stockage de fichiers (CV, livrables, photos)
 
 Port d'écoute : 8086
-Base de données : PostgreSQL (support_db, port 5436)
+Base de données : PostgreSQL (support_db, port hôte 5636)
 
 <aside>
 ⚠️
@@ -126,7 +126,7 @@ spring:
   application:
     name: support-service
   datasource:
-    url: jdbc:postgresql://localhost:5436/support_db
+    url: jdbc:postgresql://localhost:5636/support_db
     username: user
     password: password
     driver-class-name: org.postgresql.Driver
@@ -168,7 +168,7 @@ Vérifier que ça tourne :
 docker ps
 ```
 
-Vous devez voir une ligne `support-db` avec le port `5436->5432` et le statut "Up".
+Vous devez voir une ligne `support-db` avec le port `5636->5432` et le statut "Up".
 
 # 6️⃣ Lancer l'application
 
