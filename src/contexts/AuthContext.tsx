@@ -61,6 +61,9 @@ interface RegisterData {
 interface AuthActionResult {
   success: boolean;
   error?: string;
+  // Permet a la page de connexion de rediriger selon le role sans attendre
+  // la mise a jour asynchrone de l'etat `user`.
+  role?: UserRole;
 }
 
 interface AuthContextType {
@@ -150,7 +153,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password,
       });
       applyAuthentication(data);
-      return { success: true };
+      return { success: true, role: toAppUser(data.profile).role };
     } catch (error: unknown) {
       return { success: false, error: getErrorMessage(error) };
     }

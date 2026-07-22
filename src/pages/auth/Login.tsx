@@ -36,7 +36,14 @@ const Login = () => {
     setIsLoading(false);
     if (result.success) {
       toast({ title: t.au_login_ok, description: t.au_login_welcome });
-      navigate("/");
+      // Redirection selon le role : l'admin et le moderateur arrivent sur leur
+      // tableau de bord, le client sur la liste des services.
+      const destination =
+        result.role === "admin" ? "/admin"
+        : result.role === "moderator" ? "/moderateur"
+        : result.role === "client" ? "/services"
+        : "/";
+      navigate(destination);
     } else {
       setError(result.error || t.au_err_creds);
     }
