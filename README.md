@@ -38,7 +38,15 @@ PAYMENT_PROVIDER=mock
 
 ### Lancer toute la plateforme
 
-Deux parcours sont disponibles depuis la racine du dépôt.
+**Le plus simple — une seule commande.** Lance toute la plateforme puis crée les comptes administrateur et modérateur :
+
+```powershell
+.\run-local.ps1
+```
+
+Le site est ensuite sur <http://localhost:5173>, avec `admin@kametud.com` et `moderator@kametud.com` (mot de passe `Admin1234!`). Procédure détaillée, options et dépannage : **[docs/DEMARRAGE_LOCAL.md](docs/DEMARRAGE_LOCAL.md)**.
+
+Les deux parcours ci-dessous restent disponibles pour des besoins particuliers.
 
 **Tout-Docker — recommandé pour une démo.** Les sept microservices ont un `Dockerfile` et sont construits par Docker Compose : aucun Java ni Maven n'est requis sur la machine.
 
