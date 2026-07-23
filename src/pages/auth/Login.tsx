@@ -37,11 +37,16 @@ const Login = () => {
     if (result.success) {
       toast({ title: t.au_login_ok, description: t.au_login_welcome });
       // Redirection selon le role : l'admin et le moderateur arrivent sur leur
-      // tableau de bord, le client sur la liste des services.
+      // tableau de bord, le client sur la liste des services, et l'etudiant sur
+      // son profil, ou il peut completer sa vitrine (StudentProfile ouvre
+      // l'edition quand l'utilisateur connecte est le proprietaire).
+      // L'URL du profil attend l'identifiant utilisateur : sans lui, on retombe
+      // sur l'accueil plutot que de construire une adresse invalide.
       const destination =
         result.role === "admin" ? "/admin"
         : result.role === "moderator" ? "/moderateur"
         : result.role === "client" ? "/services"
+        : result.role === "student" && result.userId ? `/profil/${result.userId}`
         : "/";
       navigate(destination);
     } else {

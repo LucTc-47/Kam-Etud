@@ -61,9 +61,11 @@ interface RegisterData {
 interface AuthActionResult {
   success: boolean;
   error?: string;
-  // Permet a la page de connexion de rediriger selon le role sans attendre
-  // la mise a jour asynchrone de l'etat `user`.
+  // Permettent a la page de connexion de rediriger selon le role sans attendre
+  // la mise a jour asynchrone de l'etat `user`. userId sert a construire l'URL
+  // du profil etudiant, qui attend l'identifiant utilisateur.
   role?: UserRole;
+  userId?: string;
 }
 
 interface AuthContextType {
@@ -153,7 +155,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password,
       });
       applyAuthentication(data);
-      return { success: true, role: toAppUser(data.profile).role };
+      const authenticated = toAppUser(data.profile);
+      return { success: true, role: authenticated.role, userId: authenticated.id };
     } catch (error: unknown) {
       return { success: false, error: getErrorMessage(error) };
     }
