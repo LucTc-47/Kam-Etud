@@ -391,8 +391,29 @@ le Traefik existant du VPS, avec certificat Let's Encrypt renouvelé
 automatiquement. Le déploiement est automatisé : un `push` sur `main` met
 l'application à jour, avec vérification de santé et retour arrière automatique.
 
+### Vérification étudiante : deux défauts découverts en production
+
+**Le dossier n'était jamais enregistré.** À l'inscription d'un étudiant, les pièces justificatives étaient bien téléversées — les fichiers arrivaient sur le disque du serveur — mais le dossier de vérification n'était jamais créé. La table restait vide, l'administrateur ne voyait aucune demande à traiter, et l'étudiant ne pouvait donc jamais obtenir son badge ni publier de prestation.
+
+La cause était dans `uploadApiFile` : la fonction construisait l'URL de retour avec `new URL(chemin, API_BASE_URL)`. Or en production `VITE_API_URL` est volontairement vide, puisque le site et l'API partagent la même origine. Avec une base vide, `new URL` lève une `TypeError: Invalid URL`. L'exception remontait à l'appelant, qui abandonnait la suite du traitement avant d'envoyer la requête.
+
+Le défaut était invisible en développement, où `VITE_API_URL` vaut `http://localhost:8080` : la base étant valide, la construction réussit. C'est le cas typique d'un bug que seule la configuration de production révèle.
+
+Le diagnostic a reposé sur trois constats simultanés : les fichiers étaient présents sur le disque, la table était vide, et **aucune erreur n'apparaissait dans les journaux du backend**. Un échec côté serveur aurait laissé une trace ; ce silence indiquait que la requête ne partait jamais du navigateur.
+
+Correction : sans base configurée, le chemin relatif est renvoyé tel quel, le navigateur le résolvant sur l'origine courante. Un test de non-régression couvre désormais ce cas.
+
+**Le dossier ne peut être déposé qu'à l'inscription.** Aucun écran ne permet de le soumettre à nouveau : le hook `useCreateVerification` existe mais n'est appelé nulle part, et le seul envoi se fait dans `RegisterStudent`.
+
+Conséquence : un étudiant dont le dépôt a échoué, ou dont le dossier a été **rejeté** par un administrateur, se retrouve définitivement bloqué. Il ne peut plus jamais être vérifié, donc plus jamais publier, sans intervention manuelle en base.
+
+Correction prévue : un écran de dépôt accessible depuis le profil étudiant, réutilisant le hook déjà écrit. Le backend accepte déjà cette requête à tout moment — il ne manque que l'interface et le point d'entrée.
+
 Les prochaines priorités recommandées sont :
 
+- **ajouter un écran de dépôt du dossier de vérification** accessible depuis le
+  profil étudiant : aujourd'hui il n'est créé qu'à l'inscription, ce qui bloque
+  définitivement tout étudiant dont le dossier a échoué ou a été rejeté ;
 - changer le mot de passe des comptes `admin@` et `moderator@`, puis décider de
   l'ouverture à l'indexation Google ;
 - corriger le service worker, qui met en cache des réponses de l'API ;
