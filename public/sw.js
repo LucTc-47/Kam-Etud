@@ -91,6 +91,13 @@ self.addEventListener("fetch", (event) => {
         })
         .catch((err) => {
           console.warn("[Service Worker] Background fetch failed for:", event.request.url, err);
+          // respondWith n'accepte qu'une Response : sans ce retour, la promesse
+          // se resolvait avec undefined des qu'une ressource absente du cache
+          // echouait au reseau, ce qui produisait dans la console
+          // « TypeError: Failed to convert value to 'Response' ».
+          // On renvoie le cache s'il existe, sinon une erreur reseau explicite
+          // que la page peut traiter normalement.
+          return cachedResponse || Response.error();
         });
 
       return cachedResponse || fetchPromise;
