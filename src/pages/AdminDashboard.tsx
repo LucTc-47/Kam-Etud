@@ -568,7 +568,7 @@ const AdminDashboard = () => {
                           <div><p className="font-medium text-foreground text-sm">{p.first_name} {p.last_name}</p><p className="text-xs text-muted-foreground">{p.email}</p></div>
                         </div>
                       </TableCell>
-                      <TableCell><Badge variant="outline" className="capitalize">{p.role === "student" ? t.student : t.client}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="capitalize">{p.role === "student" ? t.student : p.role === "admin" ? t.admin : p.role === "moderator" ? t.moderator : t.client}</Badge></TableCell>
                       <TableCell className="text-sm">{p.city || '-'}</TableCell>
                       <TableCell>{statusBadge(p.banned ? "banned" : "active")}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{new Date(p.created_at).toLocaleDateString(locale)}</TableCell>
