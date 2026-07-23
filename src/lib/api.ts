@@ -122,5 +122,18 @@ export async function uploadApiFile(
     formData,
   );
 
-  return new URL(data.downloadUrl, API_BASE_URL).toString();
+  // Le backend renvoie un chemin relatif : /api/storage/files/<nom>.
+  //
+  // En production, API_BASE_URL est volontairement vide car le site et l'API
+  // partagent la meme origine. Or `new URL(chemin, "")` leve une TypeError :
+  // une base vide n'est pas une URL valide. L'exception remontait jusqu'a
+  // l'appelant, qui abandonnait la suite du traitement — c'est ce qui empechait
+  // l'envoi du dossier de verification etudiante apres le televersement.
+  //
+  // Sans base, on renvoie donc le chemin relatif tel quel : il est resolu par
+  // le navigateur sur l'origine courante, ce qui est exactement le comportement
+  // attendu en production.
+  return API_BASE_URL
+    ? new URL(data.downloadUrl, API_BASE_URL).toString()
+    : data.downloadUrl;
 }

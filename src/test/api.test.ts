@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { api, authTokenStorage } from "@/lib/api";
+import { api, authTokenStorage, uploadApiFile } from "@/lib/api";
 
 const jsonResponse = (data: unknown) => ({
   ok: true,
@@ -37,5 +37,21 @@ describe("client API", () => {
 
     const [, options] = fetchMock.mock.calls[0];
     expect(new Headers(options?.headers).get("Authorization")).toBe("Bearer access-token");
+  });
+
+  // Regression : en production VITE_API_URL est vide, car le site et l'API
+  // partagent la meme origine. Le code construisait alors `new URL(chemin, "")`,
+  // ce qui leve une TypeError et faisait echouer tout le parcours appelant.
+  // Concretement, le dossier de verification etudiante n'etait jamais envoye
+  // apres le televersement des pieces justificatives.
+  it("renvoie un chemin exploitable meme sans URL d'API configuree", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ filename: "abc.jpg", downloadUrl: "/api/storage/private/files/abc.jpg" }),
+    );
+
+    const url = await uploadApiFile(new File(["x"], "piece.jpg"), "private");
+
+    expect(url).toContain("/api/storage/private/files/abc.jpg");
+    expect(url).not.toBe("");
   });
 });

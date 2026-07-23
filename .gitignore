@@ -39,3 +39,9 @@ storage/
 *.sw?
 .agents
 .artifacts
+
+# Documents de preparation a la soutenance : supports de travail personnels,
+# regeneres a la demande, volontairement hors du depot.
+docs/*.docx
+# Fichiers temporaires crees par Word quand un document est ouvert.
+~$*
