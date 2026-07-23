@@ -278,16 +278,129 @@ Projet : racine du dépôt `Kam-Etud`
 - Cache Maven pour accélérer les builds.
 - Vérifications frontend avec installation npm, TypeScript et build Vite.
 
+## Déploiement en production sur VPS
+
+Mise en ligne sur `https://kametud.com`. Procédure complète dans [DEPLOY.md](DEPLOY.md).
+
+### Difficultés rencontrées
+
+**Perte de données au redéploiement.** `docker-compose.prod.yml` ne déclarait
+aucun volume pour les six bases PostgreSQL — seul `support_storage` existait. Un
+simple `docker compose down` aurait effacé **toute la production**, sans avertissement.
+
+**Contournement possible de l'API Gateway.** Les ports `8081` à `8086` étaient
+publiés sur l'hôte. N'importe qui pouvait appeler les microservices en direct,
+donc contourner la vérification JWT et le contrôle de bannissement portés par
+`JwtGatewayFilter`.
+
+**Frontend absent du déploiement.** Aucun Dockerfile, aucun serveur web, aucune
+entrée dans le Compose de production.
+
+**Ports 80 et 443 indisponibles.** Le VPS est partagé : ils appartiennent à une
+application tierce (`rctt.academy`), et l'utilisateur de déploiement n'a pas les
+droits root. Le compose annonçait pourtant `https://kametud.com`.
+
+**Mémoire insuffisante.** 3,7 Go partagés, sans swap, avec ~1 Go déjà consommé.
+Or une JVM sans `-Xmx` se réserve 25 % de la RAM de l'hôte : **7 services ×
+925 Mo**. La pile ne pouvait pas démarrer, et risquait d'emporter la production
+du voisin avec elle.
+
+**Fins de ligne CRLF invisibles.** `docker-compose.prod.yml` réécrit depuis
+Windows contenait 395 retours chariot. Les blocs YAML `>-` produisaient alors
+des valeurs terminées par `\r` — une JVM refusant `-Xss256k\r` au démarrage.
+Le même piège sur `.env.prod` aurait rendu mots de passe et `JWT_SECRET`
+silencieusement faux, sans message d'erreur exploitable.
+
+**Healthcheck en échec permanent.** La sonde interrogeait `http://localhost:8080`
+depuis le conteneur. `localhost` y résout d'abord `::1` (IPv6) alors que nginx
+n'écoute qu'en IPv4 : le conteneur restait `unhealthy` bien que le site réponde.
+
+**Seed des comptes en erreur 500.** Avec `SPRING_MAIN_LAZY_INITIALIZATION=true`,
+l'API Gateway est déclarée saine avant que l'identity-service ait instancié JPA.
+Le script de création des comptes tombait pendant cette fenêtre.
+
+**En-têtes de sécurité perdus sur les routes SPA.** Dans nginx, un `add_header`
+déclaré dans un `location` **annule tous ceux hérités du serveur**. Les routes
+React servies via `location = /index.html` perdaient `nosniff` et
+`X-Frame-Options`. Un double `Cache-Control` apparaissait aussi sur les assets.
+
+**Build frontend interrompu.** `npm ci` échouait sur `ECONNRESET` lors de
+coupures réseau passagères, faisant échouer tout le build.
+
+### Solutions apportées
+
+- **Volumes nommés** `postgres_data` et `support_storage`, avec un nom de projet
+  figé (`name: kametud`) pour que les volumes ne changent pas d'identité selon
+  le dossier de clone.
+- **Aucun port de microservice publié.** Seul le frontend expose `127.0.0.1:8090`,
+  pour le diagnostic en SSH.
+- **Frontend containerisé** : build Vite multi-stage puis nginx, qui sert le site
+  **et** relaie `/api` et `/ws` vers la Gateway. Front et API partagent la même
+  origine, ce qui supprime tout préflight CORS.
+- **Exposition par labels Traefik.** Le Traefik du voisin est en
+  `exposedByDefault: false` : un routeur nommé `kametud` a été ajouté par des
+  labels posés sur *notre* conteneur, sans modifier sa configuration ni ses
+  conteneurs. Le réseau partagé est déclaré `external: true`, donc un
+  `docker compose down` de notre côté ne peut pas le supprimer.
+- **Un seul PostgreSQL** hébergeant les six bases, chacune avec son rôle
+  propriétaire (`postgres/init-databases.sh`) : ~600 Mo économisés.
+- **JVM bridées** : `MaxRAMPercentage=50`, `SerialGC`, `TieredStopAtLevel=1`,
+  `Xss256k`, lazy-init, 20 threads Tomcat, pool Hikari à 5. Total ramené de
+  ~2 900 à ~2 048 Mo. Chaque conteneur porte un `mem_limit` : un service qui
+  dérive est tué *lui*, avant d'épuiser la RAM système.
+- **`.gitattributes`** imposant LF aux `.sh`, `.yml`, `.env*` et `Dockerfile`.
+- **Healthcheck en `127.0.0.1`** au lieu de `localhost`.
+- **Seed avec 6 tentatives** espacées de 10 s, pour absorber la fenêtre de
+  lazy-initialization.
+- **Politique de cache nginx par `map`** : une seule directive `add_header` au
+  niveau serveur, donc plus aucune annulation d'héritage.
+- **`npm ci` avec retries** et `--no-audit --no-fund`.
+- **RabbitMQ retiré** de la production : aucun `pom.xml` ne déclare
+  `spring-boot-starter-amqp`, aucune classe n'utilise `RabbitTemplate` ni
+  `@RabbitListener`. ~250 Mo économisés.
+- **Déploiement automatique** : `push` sur `main` → construction des 8 images →
+  SSH vers le VPS → `scripts/deploy.sh`, qui vérifie la santé du site et
+  **revient automatiquement aux images précédentes** en cas d'échec. La clé SSH
+  est enfermée par une *forced command* : elle ne peut exécuter que ce script.
+
+### Points de vigilance
+
+- `postgres/init-databases.sh` ne s'exécute **qu'une seule fois**, à la création
+  du volume. Les mots de passe de `.env.prod` doivent être définitifs avant le
+  premier démarrage.
+- `TRAEFIK_ENABLE` doit rester à `false` tant que le DNS ne pointe pas vers la
+  machine : sinon le défi Let's Encrypt échoue en boucle et pollue le journal du
+  Traefik voisin.
+- Le lazy-initialization rend le **premier appel à chaque écran** plus lent de
+  200 à 400 ms. Parcourir l'application avant une démonstration.
+- La machine n'a **aucun swap** et l'expérimentation Mininet voisine n'a aucun
+  plafond mémoire. La marge réelle est d'environ 800 Mo.
+- Les comptes `admin@` et `moderator@` utilisent un mot de passe faible sur un
+  site public : à changer avant tout usage réel.
+
 ## Résumé final
 
-Le projet a gagné en structure : le frontend est maintenant orienté Gateway, les responsabilités métier sont mieux séparées et les principaux flux sont portés par les microservices. Les plus gros efforts ont porté sur la sécurisation des contrats, la migration depuis les anciens flux frontend, la cohérence des ports, la gestion des rôles et la validation des données côté backend.
+Le projet a gagné en structure : le frontend est orienté Gateway, les
+responsabilités métier sont mieux séparées et les principaux flux sont portés
+par les microservices. Les plus gros efforts ont porté sur la sécurisation des
+contrats, la migration depuis les anciens flux frontend, la cohérence des ports,
+la gestion des rôles et la validation des données côté backend.
 
-La dockerisation applicative est désormais terminée : les sept microservices ont leur Dockerfile, la pile complète démarre avec `.\start-demo.ps1` et un fichier Compose de production distinct impose la présence des secrets réels.
+L'application est **en production sur https://kametud.com**, servie en HTTPS via
+le Traefik existant du VPS, avec certificat Let's Encrypt renouvelé
+automatiquement. Le déploiement est automatisé : un `push` sur `main` met
+l'application à jour, avec vérification de santé et retour arrière automatique.
 
 Les prochaines priorités recommandées sont :
 
-- conteneuriser ou publier le frontend (Dockerfile Node/Nginx, ou déploiement en site statique) ;
-- placer un reverse proxy TLS devant la Gateway et cesser d'exposer les ports `8081`–`8086` sur le VPS ;
+- changer le mot de passe des comptes `admin@` et `moderator@`, puis décider de
+  l'ouverture à l'indexation Google ;
+- corriger le service worker, qui met en cache des réponses de l'API ;
+- implémenter la réinitialisation de mot de passe : le lien « Oublié ? » de la
+  page de connexion pointe vers une route inexistante, et aucun endpoint backend
+  ne gère ce parcours ;
+- ajouter un `sitemap.xml` et une balise `canonical` (gérée dynamiquement, une
+  balise statique dans une SPA ferait considérer toutes les pages comme des
+  copies de l'accueil) ;
 - ajouter un workflow propre pour les suggestions de villes ;
-- enrichir les tests d'intégration interservices ;
-- finaliser le déploiement sur le VPS (`kametud.com`) avec les variables d'environnement réelles du `.env.prod`.
+- enrichir les tests d'intégration interservices.

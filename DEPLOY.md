@@ -1,172 +1,138 @@
-# Deploiement sur le VPS
+# Déploiement sur le VPS
 
-Procedure de mise en production de Kam'Etud sur la machine `kametud@<IP>`.
+Procédure de mise en production de Kam'Etud sur `kametud@51.255.164.235`,
+et fonctionnement du déploiement automatique.
+
+Site en production : **https://kametud.com**
 
 ---
 
 ## 1. Contexte de la machine
 
-Le VPS n'est pas dedie a Kam'Etud. Les contraintes ci-dessous ont dicte
+Le VPS n'est pas dédié à Kam'Etud. Les contraintes ci-dessous ont dicté
 l'essentiel de la configuration.
 
-| Contrainte | Valeur | Consequence sur le deploiement |
+| Contrainte | Valeur | Conséquence sur le déploiement |
 |---|---|---|
-| RAM | 3,7 Go, dont ~1 Go deja pris, **sans swap** | Un seul Postgres, JVM plafonnees, RabbitMQ retire |
+| RAM | 3,7 Go **sans swap**, partagés | Un seul PostgreSQL, JVM bridées, RabbitMQ retiré |
 | CPU | 2 vCPU | Les images sont construites par la CI, jamais sur le VPS |
-| Outils | Ni `java` ni `mvn`, pas de sudo | Idem : compilation impossible sur place |
-| Ports reserves | **80, 443, 3000-3999**, tenus par une application **tierce** | Exposition par tunnel Cloudflare : aucun port entrant, aucune config a demander a autrui |
-| Droits | `kametud` est dans le groupe `docker`, Docker est *rootful* | Les conteneurs demarrent sans sudo |
+| Outils | Ni `java` ni `mvn`, pas de sudo | Compilation impossible sur place |
+| Ports réservés | 80, 443, 3000-3999 | Exposition via le Traefik déjà installé, par labels |
+| Droits | `kametud` dans le groupe `docker`, Docker *rootful* | Conteneurs et ports sans sudo |
+
+### Cohabitation
+
+La machine héberge aussi :
+
+- **rctt.academy** — 4 conteneurs Docker (prod, staging, dev) derrière un **Traefik v3** ;
+- **une expérimentation réseau Mininet** — hors Docker, utilisateur `mininet-experiment`,
+  ports 6633/6653, **sans plafond mémoire**.
+
+C'est ce voisinage qui impose nos plafonds mémoire : un conteneur qui atteint sa
+limite de cgroup est tué *lui*, avant d'épuiser la RAM système et de faire
+tomber la production des autres.
 
 ---
 
-## 2. Architecture retenue
+## 2. Architecture
 
 ```
 Internet
-   |
-   v
-[Cloudflare]  <- termine le HTTPS, certificat gere et renouvele automatiquement
-   |
-   |  connexion SORTANTE, initiee depuis le VPS
-   v
-[cloudflared] --> [frontend] nginx
-                     |-- /        -> build React statique
-                     |-- /api/*   -> api-gateway:8080  \
-                     |-- /ws/*    -> api-gateway:8080  /  reseau Docker « kametud »
-                                          |
-                                          +-- identity / catalog / request / business / payment / support
-                                                          |
-                                                          +-- postgres (6 bases, 6 roles)
+   │
+   ▼
+[Traefik v3]  ← déjà installé, ports 80/443, certificats Let's Encrypt
+   │             (celui de rctt.academy — nous n'en modifions PAS la config)
+   │
+   ├── Host(`rctt.academy`)   → rctt-web-prod-1        (voisin, intact)
+   └── Host(`kametud.com`)    → kametud-frontend-1
+                                    │
+                              [nginx] ├── /       → build React statique
+                                      ├── /api/*  → api-gateway:8080  ┐
+                                      └── /ws/*   → api-gateway:8080  │ réseau
+                                                        │             │ privé
+                                                        ▼             │ kametud_prod
+                       identity / catalog / request / business /      │
+                       payment / support                              │
+                                          │                           │
+                                          ▼                           ┘
+                                    postgres (6 bases, 6 rôles)
 ```
 
-Pourquoi ce montage plutot qu'un reverse proxy classique :
+Propriétés importantes :
 
-- Les ports **80, 443 et 3000-3999 appartiennent a une application tierce** que
-  nous ne pouvons pas reconfigurer, et l'utilisateur `kametud` n'a pas root.
-  Le tunnel n'ouvre **aucun port entrant** : il se connecte vers l'exterieur.
-  Le conflit disparait au lieu d'etre contourne.
-- **Aucun port de microservice n'est publie.** Les ports 8081 a 8086 ne sont plus
-  exposes : contourner l'api-gateway, donc la verification JWT et le controle de
-  bannissement, est devenu impossible.
-- **Le front et l'API partagent la meme origine**, donc aucun preflight CORS.
-- Le seul port publie, `127.0.0.1:8090`, sert uniquement au diagnostic en SSH.
-  Il n'est pas joignable depuis l'exterieur et ne porte aucun trafic public.
+- **Nous ne touchons ni au `traefik.yml` du voisin, ni à ses conteneurs.**
+  L'exposition se fait uniquement par des **labels posés sur notre frontend**.
+  Son provider Docker est en `exposedByDefault: false` : sans le label
+  `traefik.enable=true`, un conteneur est ignoré. Nos huit autres services sont
+  donc invisibles pour lui **par construction**.
+- Le réseau `rctt_default` est déclaré `external: true` : un `docker compose down`
+  de notre côté **ne peut pas le supprimer**, donc ne peut pas couper les voisins.
+- **Aucun port de microservice n'est publié.** Contourner l'api-gateway — donc la
+  vérification JWT et le contrôle de bannissement — est impossible.
+- Le front et l'API partagent la **même origine**, donc aucun préflight CORS.
+- Seul `127.0.0.1:8090` est publié, pour le diagnostic en SSH.
 
 ---
 
-## 3. Mise en place du tunnel Cloudflare
+## 3. Déploiement automatique
 
-A faire une seule fois, entierement sans root et sans intervention d'un tiers.
+Un `push` sur `main` met l'application à jour tout seul.
 
-### 3.1 Rattacher le domaine a Cloudflare
+```
+git push origin main
+      │
+      ▼
+GitHub Actions construit les 8 images ──► GHCR
+      │  (si UNE seule échoue, le VPS n'est pas touché)
+      ▼
+SSH vers le VPS ──► scripts/deploy.sh
+      │
+      ├── docker compose pull + up -d
+      ├── vérifie /healthz et /actuator/health (jusqu'à 3 min)
+      └── si KO ──► retour arrière automatique
+```
 
-Le domaine est achete chez **Domain.com**, et il y reste : la propriete ne
-change pas, on ne fait pas de transfert. Seuls les *serveurs de noms* basculent
-vers Cloudflare, qui prend alors en charge la resolution DNS. L'operation est
-gratuite et reversible.
+### Activation
 
-1. Creer un compte sur <https://dash.cloudflare.com>, puis **Add a site** :
-   saisir le domaine, choisir le plan **Free**.
-2. Cloudflare scanne les enregistrements DNS existants et les reprend.
-   **Verifier cette liste avant de continuer** : si une adresse mail est
-   associee au domaine, ses enregistrements MX doivent y figurer, faute de quoi
-   la messagerie tombera au basculement.
-3. Cloudflare affiche alors deux serveurs de noms, du type
-   `zita.ns.cloudflare.com` et `rick.ns.cloudflare.com`.
-4. Dans Domain.com : se connecter, ouvrir **My Domains**, cliquer sur le
-   domaine, puis l'onglet **DNS & Nameservers** > **Nameservers**.
-   Choisir l'option de serveurs personnalises — le libelle varie selon la
-   version de l'interface : *Use Custom Nameservers*, *Change Nameservers* ou
-   *I have specific nameservers for my domains*. Remplacer les valeurs
-   existantes (`ns1.domain.com`, `ns2.domain.com`...) par les deux de
-   Cloudflare, **supprimer les lignes surnumeraires**, puis enregistrer.
-5. Revenir sur Cloudflare et cliquer **Check nameservers now**. La propagation
-   prend de quelques minutes a 24 h ; Cloudflare envoie un mail des que le
-   domaine est actif.
+Le job de déploiement ne fait rien tant que les secrets ne sont pas renseignés.
+Dans **Settings → Secrets and variables → Actions** :
 
-Verification en ligne de commande :
+| Secret | Valeur |
+|---|---|
+| `VPS_SSH_KEY` | clé privée de déploiement (`~/.ssh/kametud_deploy`) |
+| `VPS_HOST` | `51.255.164.235` |
+| `VPS_USER` | `kametud` |
+
+### Sécurité de la clé
+
+La clé publique est installée dans `~/.ssh/authorized_keys` avec une
+**forced command** :
+
+```
+command="bash $HOME/kametud/scripts/deploy.sh",no-pty,no-port-forwarding,... ssh-ed25519 AAAA...
+```
+
+Quelle que soit la commande demandée par le client SSH, **seul `deploy.sh`
+s'exécute**. Vérifié : une tentative de lecture de `.env.prod` avec cette clé
+lance le déploiement au lieu d'afficher le fichier. Même compromise, elle ne
+donne ni shell, ni tunnel, ni accès aux secrets.
+
+### Déclenchement manuel
 
 ```bash
-dig NS kametud.com +short     # doit renvoyer les deux serveurs cloudflare.com
+ssh kametud@51.255.164.235
+bash ~/kametud/scripts/deploy.sh
 ```
 
-> Si Domain.com refuse la modification, la cause est presque toujours un
-> verrou de registrar (*Domain Lock*) ou un service DNS additionnel souscrit
-> chez eux. Le verrou se desactive dans le meme ecran et protege contre les
-> transferts, pas contre un changement de serveurs de noms : il peut etre
-> reactive juste apres.
-
-### 3.2 Creer le tunnel
-
-1. Cloudflare Zero Trust > **Networks** > **Tunnels** > **Create a tunnel**.
-2. Type **Cloudflared**, nommer le tunnel (par exemple `kametud-vps`).
-3. L'ecran suivant affiche une commande d'installation contenant un long jeton.
-   **Ne pas lancer cette commande** : notre `cloudflared` tourne en conteneur.
-   Copier uniquement le jeton (la valeur apres `--token`).
-4. Onglet **Public Hostnames** > **Add a public hostname** :
-
-   | Champ | Valeur |
-   |---|---|
-   | Subdomain | *(vide)* |
-   | Domain | `kametud.com` |
-   | Type | `HTTP` |
-   | URL | `frontend:8080` |
-
-   `frontend` est le nom du conteneur nginx, resolu par le reseau Docker interne.
-   Le type est bien **HTTP** et non HTTPS : le chiffrement s'arrete chez
-   Cloudflare, la liaison interne reste en clair dans le reseau Docker.
-
-5. Repeter pour `www.kametud.com` avec la meme cible.
-
-### 3.3 Renseigner le jeton
-
-Coller le jeton dans `.env.prod` :
-
-```
-CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoiXXXXXXXX...
-```
-
-Apres `docker compose up -d`, le tunnel doit apparaitre **HEALTHY** dans le
-tableau de bord Cloudflare.
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml logs cloudflared | tail -20
-```
-
-### 3.4 Reglages Cloudflare recommandes
-
-- **SSL/TLS** > mode **Full**. En mode *Flexible*, Cloudflare accepterait du
-  HTTP non chiffre depuis n'importe ou ; le tunnel etant deja chiffre de bout en
-  bout jusqu'a Cloudflare, *Full* est correct et plus sur.
-- **SSL/TLS** > **Edge Certificates** > activer **Always Use HTTPS**.
-- Le plan gratuit limite les televersements a 100 Mo, largement au-dessus des
-  25 Mo autorises par notre nginx.
+Journal : `~/kametud/deploy.log`.
 
 ---
 
-## 4. La seule demande a faire a l'administrateur root
+## 4. Installation initiale
 
-Un fichier de swap de 2 Go. La somme des plafonds memoire de la stack est de
-**2,96 Go** pour **2,8 Go disponibles**. Sans swap, le noyau tue un conteneur
-des que plusieurs services montent en charge simultanement.
+À ne refaire qu'en cas de reconstruction complète.
 
-> Merci d'ajouter 2 Go de swap :
-> ```
-> fallocate -l 2G /swapfile && chmod 600 /swapfile
-> mkswap /swapfile && swapon /swapfile
-> echo '/swapfile none swap sw 0 0' >> /etc/fstab
-> ```
-
-Sans ce swap, le deploiement fonctionnera au repos mais restera fragile.
-L'alternative propre est de passer le VPS a 8 Go.
-
----
-
-## 5. Installation initiale
-
-### 5.1 Installer le plugin Compose (sans root)
-
-`docker compose` n'est pas installe sur la machine. En plugin utilisateur :
+### 4.1 Plugin Compose (sans root)
 
 ```bash
 mkdir -p ~/.docker/cli-plugins
@@ -176,186 +142,192 @@ chmod +x ~/.docker/cli-plugins/docker-compose
 docker compose version
 ```
 
-### 5.2 Recuperer le depot
+### 4.2 Fichiers
 
-```bash
-cd ~
-git clone https://github.com/LucTc-47/Kam-Etud.git
-cd Kam-Etud/Backend-Kametude
+L'arborescence sur le VPS est `~/kametud/` :
+
+```
+~/kametud/
+├── docker-compose.prod.yml
+├── .env.prod                    (secrets, chmod 600, jamais commité)
+├── postgres/init-databases.sh
+└── scripts/
+    ├── deploy.sh
+    ├── seed-admin.sh
+    └── backup.sh
 ```
 
-### 5.3 S'authentifier sur GHCR
-
-Necessaire uniquement si le depot est prive. Creer un *Personal Access Token*
-GitHub avec la portee `read:packages`, puis :
-
-```bash
-echo 'ghp_xxxxxxxxxxxx' | docker login ghcr.io -u LucTc-47 --password-stdin
-```
-
-### 5.4 Renseigner les secrets
+### 4.3 Secrets
 
 ```bash
 cp .env.prod.example .env.prod
 chmod 600 .env.prod
 ```
 
-Generer une valeur pour **chaque** champ vide :
+Générer chaque valeur vide avec `openssl rand -hex 32`, puis valider :
 
 ```bash
-openssl rand -hex 32
+docker compose --env-file .env.prod -f docker-compose.prod.yml config >/dev/null && echo OK
 ```
 
-`.env.prod` est ignore par git et ne doit jamais etre committe.
-Verifier que rien ne manque — le demarrage echoue explicitement sur toute
-variable absente, grace a la syntaxe `${VAR:?}` :
+> ⚠️ **Les mots de passe PostgreSQL doivent être définitifs avant le premier
+> démarrage.** `postgres/init-databases.sh` ne s'exécute **qu'une seule fois**,
+> à la création du volume. Les changer ensuite oblige à corriger les rôles à la
+> main dans PostgreSQL.
 
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml config >/dev/null && echo "configuration valide"
-```
+### 4.4 Variables d'exposition
 
-### 5.5 Demarrer
+| Variable | Rôle |
+|---|---|
+| `PUBLIC_SITE_HOST` | `kametud.com` — construit la règle Traefik |
+| `TRAEFIK_NETWORK` | `rctt_default` — réseau du Traefik existant |
+| `TRAEFIK_ENABLE` | `true` en production. **`false` tant que le DNS ne pointe pas** vers la machine, sinon Let's Encrypt échoue en boucle et pollue le journal du voisin |
+| `PUBLIC_BIND` | `127.0.0.1`. Passer à `0.0.0.0` expose temporairement en HTTP par IP (test sans DNS) |
+
+### 4.5 Démarrage
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml pull
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 ```
 
-Avec 2 vCPU, comptez **3 a 5 minutes** avant que les sept JVM soient pretes.
-
-```bash
-docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-curl -s http://127.0.0.1:8080/actuator/health   # gateway
-curl -s http://127.0.0.1:8090/healthz           # frontend, en local
-curl -s https://kametud.com/healthz             # frontend, via le tunnel
-```
-
-La derniere commande est celle qui compte : elle valide toute la chaine, de
-Cloudflare jusqu'au conteneur nginx.
-
-> **Le script d'initialisation des bases ne s'execute qu'une seule fois**, quand
-> le volume `postgres_data` est vide. Si les identifiants de `.env.prod` changent
-> apres coup, il faut modifier les roles dans Postgres a la main : reecrire
-> `.env.prod` ne suffira pas.
+Le service `seed` crée automatiquement `admin@kametud.com` et
+`moderator@kametud.com`. Il apparaît en `Exited (0)` : c'est le résultat
+**attendu** pour un conteneur à usage unique.
 
 ---
 
-## 6. Mettre a jour
+## 5. DNS et certificat
 
-Un `push` sur `main` declenche le workflow `publish-images.yml`, qui publie les
-huit images sur GHCR. Ensuite, sur le VPS :
+| Type | Hôte | Valeur |
+|---|---|---|
+| A | `@` | `51.255.164.235` |
+| A | `www` | `51.255.164.235` |
 
-```bash
-cd ~/Kam-Etud/Backend-Kametude
-git pull                                                     # recupere le compose a jour
-docker compose --env-file .env.prod -f docker-compose.prod.yml pull
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
-docker image prune -f                                        # libere le disque
-```
-
-### Revenir en arriere
-
-Chaque image est aussi taguee avec le SHA du commit. Pour repointer la stack sur
-une version anterieure, editer `IMAGE_TAG` dans `.env.prod` :
+Le domaine est chez **Domain.com**. Vérifier avant d'activer Traefik :
 
 ```bash
-IMAGE_TAG=sha-3f2a1b9c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f90
+dig +short kametud.com     # doit renvoyer 51.255.164.235
 ```
 
-puis relancer `pull` et `up -d`.
+Le certificat Let's Encrypt est obtenu **automatiquement** par Traefik au
+démarrage du conteneur, et renouvelé sans intervention.
+
+État actuel : TLS 1.3, certificat couvrant `kametud.com` et `www.kametud.com`,
+redirection HTTP → HTTPS active.
 
 ---
 
-## 7. Sauvegarder les donnees
+## 6. Sauvegarder
 
-Deux volumes contiennent l'integralite de l'etat : `postgres_data` (les six
-bases) et `support_storage` (les fichiers televerses).
-
-```bash
-# Sauvegarde des six bases dans un seul fichier
-docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T postgres \
-  pg_dumpall -U "$(grep POSTGRES_ADMIN_USER .env.prod | cut -d= -f2)" \
-  | gzip > ~/backups/kametud-$(date +%F).sql.gz
-```
-
-```bash
-# Sauvegarde des fichiers televerses
-docker run --rm -v kametud_support_storage:/data -v ~/backups:/out alpine \
-  tar czf /out/storage-$(date +%F).tar.gz -C /data .
-```
-
-Le script `scripts/backup.sh` fait les deux, purge les archives de plus de
-14 jours et se lance a la main ou via `crontab -e` (disponible sans root) :
+Deux volumes contiennent tout l'état : `kametud_postgres_data` (les six bases)
+et `kametud_support_storage` (fichiers téléversés).
 
 ```bash
 mkdir -p ~/backups
-bash scripts/backup.sh
+bash ~/kametud/scripts/backup.sh
 ```
 
+Le script archive les deux volumes et purge au-delà de 14 jours. Automatisation
+via `crontab -e` (disponible sans root) :
+
 ```
-0 3 * * * cd ~/Kam-Etud/Backend-Kametude && bash scripts/backup.sh >> ~/backups/backup.log 2>&1
+0 3 * * * cd ~/kametud && bash scripts/backup.sh >> ~/backups/backup.log 2>&1
 ```
 
 ---
 
-## 8. Diagnostic
+## 7. Diagnostic
 
 ```bash
-# Consommation memoire reelle, service par service
+cd ~/kametud
+docker compose --env-file .env.prod -f docker-compose.prod.yml ps
 docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
-
-# Logs d'un service
 docker compose --env-file .env.prod -f docker-compose.prod.yml logs -f identity-service
+tail -30 ~/kametud/deploy.log
 
-# Un conteneur a-t-il ete tue par manque de memoire ?
-docker inspect --format '{{.Name}} OOMKilled={{.State.OOMKilled}} exit={{.State.ExitCode}}' $(docker ps -aq)
+# Un conteneur a-t-il été tué faute de mémoire ?
+docker inspect --format '{{.Name}} OOM={{.State.OOMKilled}}' $(docker ps -aq --filter name=kametud)
 ```
 
-| Symptome | Cause probable |
+| Symptôme | Cause probable |
 |---|---|
-| Un service redemarre en boucle, `OOMKilled=true` | Plafond memoire trop bas, ou absence de swap. Voir §4 |
-| `502` en local sur 8090 | La gateway n'est pas encore prete (compter 3 a 5 min au demarrage) |
-| Erreur 1033 ou 502 de Cloudflare | Le tunnel est deconnecte, ou le *public hostname* ne pointe pas sur `frontend:8080`. Verifier `docker compose logs cloudflared` et l'etat du tunnel dans le tableau de bord |
-| Le site repond en local mais pas sur le domaine | Les serveurs de noms Domain.com ne pointent pas encore sur Cloudflare, ou la propagation n'est pas terminee. Verifier avec `dig NS kametud.com +short` |
-| `FATAL: password authentication failed` | `.env.prod` a change apres l'initialisation du volume. Voir l'avertissement du §5.5 |
-| Le site affiche l'ancienne version | Cache du service worker : `sw.js` et `index.html` sont pourtant servis en `no-cache`, forcer un rechargement dur |
+| Redémarrages en boucle, `OOM=true` | Plafond trop bas, ou absence de swap. Voir §8 |
+| Erreur 404 de Traefik | `TRAEFIK_ENABLE=false`, ou le DNS ne pointe pas ici |
+| Certificat invalide | DNS pas encore propagé au moment de l'activation |
+| `FATAL: password authentication failed` | `.env.prod` modifié après l'initialisation du volume (§4.3) |
+| Le site affiche une ancienne version | Cache du service worker : F12 → Application → Service Workers → Unregister |
+| Le déploiement auto ne part pas | Secrets GitHub absents — le job se termine proprement sans rien faire |
 
 ---
 
-## 9. Budget memoire
+## 8. Budget mémoire
+
+Configuration allégée pour cohabiter avec les voisins.
 
 | Composant | Plafond | Commentaire |
 |---|---|---|
-| postgres | 320 Mo | Une instance, six bases. Six instances separees coutaient ~800 Mo |
-| identity / catalog / request / business / payment / support | 6 x 360 Mo | `-XX:MaxRAMPercentage=50` + SerialGC |
-| api-gateway | 320 Mo | WebFlux, plus leger |
-| frontend | 64 Mo | nginx et fichiers statiques |
-| cloudflared | 96 Mo | Agent du tunnel. Remplace un reverse proxy qu'on ne pourrait pas installer |
-| **Total** | **2 960 Mo** | pour **~2 800 Mo disponibles** |
+| postgres | 224 Mo | Une instance, six bases. Six instances coûtaient ~800 Mo |
+| identity / request / payment / support | 4 × 256 Mo | JVM bridées |
+| catalog / business | 2 × 320 Mo | Relevés après mesure réelle (89 % et 82 % à 256 Mo) |
+| api-gateway | 192 Mo | WebFlux, plus léger |
+| frontend | 32 Mo | nginx et fichiers statiques |
+| seed | 64 Mo | éphémère |
+| **Total** | **≈ 2 048 Mo** | pour ~2 800 Mo disponibles |
 
-**Le total des plafonds depasse la memoire libre d'environ 160 Mo.** Ce n'est pas
-une erreur de calcul : un `mem_limit` est un plafond, pas une reservation, et les
-services ne l'atteignent jamais tous en meme temps. En pratique la stack
-consomme plutot 2,2 a 2,4 Go au repos.
+Réglages appliqués aux JVM (`x-java-defaults` du compose) :
 
-Mais **cela ne laisse aucune marge**, et sans swap le noyau n'a aucune soupape :
-il tue directement un conteneur. Le swap du §4 est ce qui separe une stack stable
-d'une stack qui perd un service au premier pic de trafic. A verifier des la mise
-en ligne :
+- `-XX:MaxRAMPercentage=50` — la JVM se cale sur le `mem_limit` du conteneur,
+  pas sur les 3,7 Go de l'hôte. Sans lui, **chaque service réserverait ~925 Mo** ;
+- `-XX:+UseSerialGC` — le ramasse-miettes le plus économe sur petits tas ;
+- `-XX:TieredStopAtLevel=1` — compilation C1 seule, divise le cache de code ;
+- `-Xss256k` — 200 threads à 1 Mo de pile par défaut, c'est 200 Mo pour rien ;
+- `SPRING_MAIN_LAZY_INITIALIZATION=true` — beans créés à la demande ;
+- `SERVER_TOMCAT_THREADS_MAX=20` — 200 par défaut, inutile à cette échelle ;
+- `HIKARI_MAXIMUM_POOL_SIZE=5` — **le gain le plus souvent oublié** : chaque
+  connexion coûte 5 à 10 Mo côté PostgreSQL, 10 par service faisaient 60 au total.
 
-```bash
-docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.MemPerc}}'
+Contrepartie du *lazy initialization* : le **premier appel** à chaque écran est
+plus lent de 200 à 400 ms. Avant une démonstration, parcourir l'application une
+fois pour « réveiller » les services.
+
+### Le swap reste recommandé
+
+La machine n'a **aucun swap**, et l'expérimentation Mininet voisine n'a aucun
+plafond. Demande à faire à l'administrateur root :
+
+```
+fallocate -l 2G /swapfile && chmod 600 /swapfile
+mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 ```
 
-Si un service depasse durablement 85 % de son plafond, l'augmenter et en baisser
-un autre plutot que de laisser le noyau arbitrer.
+### Composants retirés
 
-### Composants retires
+**RabbitMQ** a été supprimé de la production : aucun `pom.xml` ne déclare
+`spring-boot-starter-amqp`, aucune classe n'utilise `RabbitTemplate` ni
+`@RabbitListener`, aucun `application.yaml` ne configure `spring.rabbitmq`.
+Toute la communication passe par Spring REST Client. Le conteneur consommait
+~250 Mo sans rendre de service. Il reste dans `docker-compose.yml`
+(développement) pour une éventuelle évolution asynchrone.
 
-**RabbitMQ** a ete supprime du compose de production. Aucun `pom.xml` ne declare
-`spring-boot-starter-amqp`, aucune classe n'utilise `RabbitTemplate` ou
-`@RabbitListener`, et aucun `application.yaml` ne configure `spring.rabbitmq` :
-toute la communication inter-services passe par Spring REST Client. Le conteneur
-consommait environ 250 Mo sans rendre de service. Il reste present dans
-`docker-compose.yml` (developpement) pour le jour ou une file d'attente sera
-reellement branchee.
+**Cloudflare Tunnel** a été envisagé puis abandonné : il répondait à l'hypothèse
+d'un VPS sans reverse proxy exploitable. La découverte du Traefik existant l'a
+rendu inutile — les labels évitent 96 Mo de RAM, la migration DNS vers
+Cloudflare, et le passage du trafic en clair chez un tiers.
+
+---
+
+## 9. Sécurité — à traiter
+
+| Point | État |
+|---|---|
+| Mot de passe `admin@` / `moderator@` | ⚠️ `Admin1234!` — **à changer**, le site est public et l'adresse devinable |
+| Indexation Google | Ouverte (`robots.txt` permissif). À bloquer tant que le mot de passe n'est pas changé |
+| `sitemap.xml` | Absent — l'URL renvoie le fallback SPA en `text/html` |
+| Balise `canonical` | Absente. `www` et non-`www` répondent tous deux 200 → duplicate content |
+| HSTS | Absent. À activer avec précaution : l'effet est **collant** côté navigateur |
+
+Voir aussi : [docs/DEMARRAGE_LOCAL.md](docs/DEMARRAGE_LOCAL.md) pour l'exécution
+en local, et [README_DIFFICULTES_SOLUTIONS.md](README_DIFFICULTES_SOLUTIONS.md)
+pour les problèmes rencontrés et leurs solutions.
