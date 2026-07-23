@@ -1,4 +1,8 @@
-const CACHE_NAME = "kam-etud-cache-v1";
+// Version du cache. L'incrementer purge l'ancien cache chez tous les visiteurs :
+// l'evenement "activate" supprime tout cache dont le nom differe.
+// Passage en v2 : l'ancien cache contenait des reponses d'API, notamment un
+// /api/profiles/me vide servi indefiniment.
+const CACHE_NAME = "kam-etud-cache-v2";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
@@ -41,6 +45,24 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   // Handle HTTP/HTTPS requests only (ignore chrome-extension, etc.)
   if (!event.request.url.startsWith(self.location.origin)) {
+    return;
+  }
+
+  // Ne jamais intercepter les appels a l'API ni les requetes qui modifient
+  // des donnees.
+  //
+  // Sans ce garde-fou, la strategie stale-while-revalidate ci-dessous
+  // s'appliquait aussi aux reponses de l'API : une reponse vide de
+  // /api/profiles/me restait servie indefiniment depuis le cache, et les
+  // requetes POST etaient relayees par le service worker au lieu de partir
+  // directement au reseau, ce qui faisait echouer la creation d'une prestation.
+  //
+  // Un « return » sans respondWith laisse le navigateur traiter la requete
+  // normalement, sans interception.
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET"
+      || url.pathname.startsWith("/api/")
+      || url.pathname.startsWith("/ws/")) {
     return;
   }
 
