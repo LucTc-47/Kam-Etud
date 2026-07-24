@@ -33,7 +33,10 @@ public class RestCatalogClient implements CatalogClient {
                     .body(GigDeactivationResponse.class);
             return response == null ? 0 : response.deactivatedCount();
         } catch (RestClientException exception) {
-            throw new IllegalStateException("Catalog Service indisponible : bannissement non applique", exception);
+            // Le message ne parle plus de « bannissement » : ce client sert aussi au
+            // rejet d'un dossier de verification et au retrait du drapeau « verified ».
+            throw new IllegalStateException(
+                    "Catalog Service indisponible : retrait du droit de publier non applique", exception);
         }
     }
 

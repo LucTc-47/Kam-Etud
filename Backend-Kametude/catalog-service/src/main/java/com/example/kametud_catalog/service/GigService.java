@@ -85,7 +85,12 @@ public class GigService {
     public GigResponse updateGig(UUID gigId, UUID studentId, GigCreateRequest request) {
         Gig gig = getGigOrThrow(gigId);
         ensureOwner(gig, studentId);
-        if (request.isPublished() && !gig.isPublished()) {
+        // Ancien controle : « request.isPublished() && !gig.isPublished() », donc
+        // uniquement sur la transition non-publie -> publie. Une prestation deja en
+        // ligne echappait alors a toute verification : un etudiant dont le dossier a
+        // ete rejete pouvait en reecrire le titre, la description et les tarifs.
+        // Le controle porte desormais sur l'etat vise, pas sur la transition.
+        if (request.isPublished()) {
             ensureStudentCanPublish(studentId);
         }
 

@@ -3,7 +3,6 @@ package com.darwin.authservice.service;
 import com.darwin.authservice.dto.AdminProfileUpdateRequest;
 import com.darwin.authservice.dto.ProfileResponse;
 import com.darwin.authservice.dto.ProfileUpdateRequest;
-import com.darwin.authservice.client.CatalogClient;
 import com.darwin.authservice.entity.Profile;
 import com.darwin.authservice.entity.Role;
 import com.darwin.authservice.entity.User;
@@ -23,7 +22,7 @@ public class ProfileService {
     private final ProfileRepository profileRepository;
     private final UserRepository userRepository;
     private final ProfileMapper profileMapper;
-    private final CatalogClient catalogClient;
+    private final PublicationRightsService publicationRights;
 
     @Transactional(readOnly = true)
     public ProfileResponse getByUserId(UUID userId) {
@@ -69,6 +68,11 @@ public class ProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouve"));
         if (request.getVerified() != null) {
+            // Retirer la verification retire le droit de publier : les prestations
+            // deja en ligne doivent suivre, sinon l'etudiant reste au catalogue.
+            if (!request.getVerified() && user.getRole() == Role.STUDENT) {
+                publicationRights.revokeFor(userId);
+            }
             profile.setVerified(request.getVerified());
         }
         if (request.getBanned() != null) {
@@ -76,7 +80,7 @@ public class ProfileService {
             if (banned && user.getRole() == Role.STUDENT) {
                 // La desactivation distante est faite avant le verrouillage du compte :
                 // en cas de panne Catalog, aucune suspension partielle n'est annoncee.
-                catalogClient.deactivateStudentGigs(userId);
+                publicationRights.revokeFor(userId);
             }
             profile.setBanned(request.getBanned());
             user.setEnabled(!banned);
