@@ -122,11 +122,17 @@ const RegisterStudent = () => {
       navigate("/", { state: { confetti: true } });
     } catch (e: unknown) {
       console.error("Verification upload error:", e);
-      toast({ title: "Erreur", description: "Compte créé mais erreur lors de l'envoi des documents. Contactez le support.", variant: "destructive" });
+      // Le compte et son JWT existent deja, mais l'envoi des pieces a echoue.
+      // Ne PAS afficher la confirmation festive (confetti) : ce serait une
+      // fausse reussite. On dirige l'etudiant vers son espace, ou la banniere
+      // de verification lui permet de redeposer son dossier.
+      toast({
+        title: t.au_kyc_failed,
+        description: t.au_kyc_failed_d,
+        variant: "destructive",
+      });
       setIsLoading(false);
-      // Le compte et son JWT existent deja, meme si l'envoi KYC a echoue.
-      // Ancien comportement : navigate("/connexion");
-      navigate("/", { state: { confetti: true } });
+      navigate("/mes-gigs");
     }
   };
 
