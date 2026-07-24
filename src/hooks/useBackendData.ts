@@ -560,6 +560,18 @@ export function useUpdateVerification() {
   });
 }
 
+// Dossiers de verification de l'etudiant connecte (pour savoir s'il en a
+// deja un en attente avant de proposer d'en soumettre un nouveau).
+export function useMyVerifications() {
+  return useQuery({
+    queryKey: ['my-verifications'],
+    queryFn: async () => {
+      const { data } = await api.get<BackendVerificationRequest[]>('/api/verifications/me');
+      return data;
+    },
+  });
+}
+
 export function useCreateVerification() {
   const qc = useQueryClient();
   // Ancien besoin : const { user } = useAuth(); l'identite est maintenant lue dans le JWT.
@@ -571,7 +583,10 @@ export function useCreateVerification() {
       // L'identite vient des claims JWT cote serveur.
       await api.post('/api/verifications', req);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['verifications'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['verifications'] });
+      qc.invalidateQueries({ queryKey: ['my-verifications'] });
+    },
   });
 }
 

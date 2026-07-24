@@ -44,6 +44,8 @@ vi.mock("@/hooks/useBackendData", () => ({
   useToggleGig: () => ({ mutate: vi.fn() }),
   useDeleteGig: () => ({ mutate: vi.fn() }),
   usePublishGig: () => ({ mutate: vi.fn() }),
+  useMyVerifications: () => ({ data: [] }),
+  useCreateVerification: () => ({ mutateAsync: vi.fn() }),
 }));
 
 import MyGigs from "@/pages/MyGigs";
