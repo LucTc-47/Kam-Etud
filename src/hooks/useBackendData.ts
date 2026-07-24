@@ -824,9 +824,15 @@ export async function getSignedFileUrl(bucket: string, pathOrUrl: string, expire
   // Support Service controle l'acces a chaque requete privee.
   const filename = pathOrUrl.split('?')[0].split('/').filter(Boolean).pop();
   if (!filename) throw new Error("Chemin de fichier invalide");
+  // En production, api.defaults.baseURL est volontairement vide (le site et
+  // l'API partagent la meme origine). « new URL(chemin, "") » leverait alors
+  // « TypeError: Failed to construct 'URL': Invalid base URL ». On concatene
+  // donc comme le reste du client HTTP : une base vide laisse un chemin relatif
+  // que fetch resout contre l'origine courante.
+  const base = (api.defaults.baseURL ?? "").replace(/\/$/, "");
   const url = /^https?:\/\//i.test(pathOrUrl)
     ? pathOrUrl
-    : new URL(`/api/storage/private/files/${filename}`, api.defaults.baseURL).toString();
+    : `${base}/api/storage/private/files/${filename}`;
   const token = authTokenStorage.getAccessToken();
   const response = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
   if (!response.ok) throw new Error(`Acces au fichier refuse (${response.status})`);
