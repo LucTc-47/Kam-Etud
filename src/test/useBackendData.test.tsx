@@ -17,8 +17,10 @@ vi.mock("@/lib/api", () => ({
     put: vi.fn(),
     patch: mocks.patch,
     delete: vi.fn(),
+    // En production, cette base est vide (site et API sur la meme origine).
+    defaults: { baseURL: "" },
   },
-  authTokenStorage: {},
+  authTokenStorage: { getAccessToken: () => null },
   uploadApiFile: vi.fn(),
 }));
 
@@ -26,7 +28,7 @@ vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ user: mocks.user }),
 }));
 
-import { useAbuseReports, useCreateAbuseReport, useDecideAbuseReport, useGigs, useProfile } from "@/hooks/useBackendData";
+import { getSignedFileUrl, useAbuseReports, useCreateAbuseReport, useDecideAbuseReport, useGigs, useProfile } from "@/hooks/useBackendData";
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -150,5 +152,29 @@ describe("useBackendData", () => {
       action: "WARN",
       adminNote: "Avertissement apres verification des preuves.",
     });
+  });
+
+  // Regression : en production api.defaults.baseURL est vide (meme origine).
+  // Le code faisait « new URL(chemin, "") », qui leve « Failed to construct
+  // 'URL': Invalid base URL », d'ou l'echec du telechargement des preuves et
+  // livrables depuis la gestion des litiges. On concatene desormais un chemin
+  // relatif, resolu par fetch contre l'origine courante.
+  it("construit l'URL du fichier prive sans base d'API configuree", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob(["x"]),
+    } as unknown as Response);
+    const createObjectURL = vi.fn(() => "blob:local");
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL }));
+
+    await expect(
+      getSignedFileUrl("disputes", "/api/storage/private/files/preuve.png"),
+    ).resolves.toBe("blob:local");
+
+    const [calledUrl] = fetchMock.mock.calls[0];
+    expect(calledUrl).toBe("/api/storage/private/files/preuve.png");
+
+    vi.unstubAllGlobals();
   });
 });
