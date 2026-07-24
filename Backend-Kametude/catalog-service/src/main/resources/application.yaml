@@ -38,8 +38,10 @@ identity:
 internal:
   service-token: ${INTERNAL_SERVICE_TOKEN:change-this-internal-token}
 
-app:
-  cors:
-    allowed-origins:
-      - http://localhost:3000
-      - http://localhost:5173
+# Le CORS est gere une seule fois, au niveau de l'api-gateway (globalcors,
+# origine ${PUBLIC_SITE_URL}). Le catalogue ne declare donc pas sa propre
+# politique : l'ancienne, restreinte a localhost, rejetait en 403
+# « Invalid CORS request » toute requete mutante (POST/PUT/PATCH/DELETE) venant
+# du navigateur en production, car elle porte un en-tete Origin que le service
+# voyait comme cross-origin. Les autres services metier delegent deja au
+# gateway de la meme facon.
