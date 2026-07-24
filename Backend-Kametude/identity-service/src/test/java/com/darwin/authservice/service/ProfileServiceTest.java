@@ -1,6 +1,5 @@
 package com.darwin.authservice.service;
 
-import com.darwin.authservice.client.CatalogClient;
 import com.darwin.authservice.dto.AdminProfileUpdateRequest;
 import com.darwin.authservice.entity.Profile;
 import com.darwin.authservice.entity.Role;
@@ -24,7 +23,7 @@ import static org.mockito.Mockito.*;
 class ProfileServiceTest {
     @Mock ProfileRepository profileRepository;
     @Mock UserRepository userRepository;
-    @Mock CatalogClient catalogClient;
+    @Mock PublicationRightsService publicationRights;
     @Spy ProfileMapper profileMapper = new ProfileMapper();
     @InjectMocks ProfileService profileService;
 
@@ -40,14 +39,54 @@ class ProfileServiceTest {
         when(userRepository.findById(studentId)).thenReturn(Optional.of(user));
         when(profileRepository.findByUserId(studentId)).thenReturn(Optional.of(profile));
         when(profileRepository.save(profile)).thenReturn(profile);
-        when(catalogClient.deactivateStudentGigs(studentId)).thenReturn(2);
+        when(publicationRights.revokeFor(studentId)).thenReturn(2);
 
         var response = profileService.updateByAdmin(studentId, request);
 
         assertThat(response.getBanned()).isTrue();
         assertThat(user.isEnabled()).isFalse();
-        verify(catalogClient).deactivateStudentGigs(studentId);
+        verify(publicationRights).revokeFor(studentId);
         verify(userRepository).save(user);
+    }
+
+    @Test
+    void removingVerificationAlsoRemovesGigsFromCatalogue() {
+        // Sans ce retrait, l'etudiant perdait le droit de publier mais restait
+        // affiche au catalogue avec ses prestations en ligne.
+        UUID studentId = UUID.randomUUID();
+        User user = User.builder().id(studentId).email("student@kametud.com")
+                .password("hash").role(Role.STUDENT).enabled(true).build();
+        Profile profile = Profile.builder().id(UUID.randomUUID()).userId(studentId)
+                .role("student").verified(true).banned(false).build();
+        AdminProfileUpdateRequest request = new AdminProfileUpdateRequest();
+        request.setVerified(false);
+        when(userRepository.findById(studentId)).thenReturn(Optional.of(user));
+        when(profileRepository.findByUserId(studentId)).thenReturn(Optional.of(profile));
+        when(profileRepository.save(profile)).thenReturn(profile);
+        when(publicationRights.revokeFor(studentId)).thenReturn(1);
+
+        var response = profileService.updateByAdmin(studentId, request);
+
+        assertThat(response.getVerified()).isFalse();
+        verify(publicationRights).revokeFor(studentId);
+    }
+
+    @Test
+    void grantingVerificationDoesNotTouchTheCatalogue() {
+        UUID studentId = UUID.randomUUID();
+        User user = User.builder().id(studentId).email("student@kametud.com")
+                .password("hash").role(Role.STUDENT).enabled(true).build();
+        Profile profile = Profile.builder().id(UUID.randomUUID()).userId(studentId)
+                .role("student").verified(false).banned(false).build();
+        AdminProfileUpdateRequest request = new AdminProfileUpdateRequest();
+        request.setVerified(true);
+        when(userRepository.findById(studentId)).thenReturn(Optional.of(user));
+        when(profileRepository.findByUserId(studentId)).thenReturn(Optional.of(profile));
+        when(profileRepository.save(profile)).thenReturn(profile);
+
+        profileService.updateByAdmin(studentId, request);
+
+        verifyNoInteractions(publicationRights);
     }
 
     @Test
@@ -66,6 +105,6 @@ class ProfileServiceTest {
         profileService.updateByAdmin(studentId, request);
 
         assertThat(user.isEnabled()).isTrue();
-        verifyNoInteractions(catalogClient);
+        verifyNoInteractions(publicationRights);
     }
 }

@@ -25,6 +25,7 @@ public class VerificationService {
 
     private final StudentVerificationRepository verificationRepository;
     private final ProfileRepository profileRepository;
+    private final PublicationRightsService publicationRights;
 
     @Transactional
     public VerificationResponse create(User user, CreateVerificationRequest request) {
@@ -79,6 +80,16 @@ public class VerificationService {
 
         StudentVerification verification = verificationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Demande de verification introuvable"));
+
+        // Un rejet retire le droit de publier. Sans ce retrait, les prestations
+        // deja en ligne restaient visibles et commandables : le moderateur croyait
+        // avoir suspendu l'etudiant, le catalogue continuait de l'afficher.
+        // L'appel precede l'enregistrement pour que la transaction soit annulee
+        // si Catalog Service est injoignable.
+        if (status == VerificationStatus.REJECTED) {
+            publicationRights.revokeFor(verification.getStudentId());
+        }
+
         verification.setStatus(status);
         verification.setReviewedAt(Instant.now());
 
